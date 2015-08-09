@@ -1,13 +1,13 @@
 {
   "name": "synesthesia",
   "main": "./lib/synesthesia",
-  "version": "0.0.0",
-  "description": "A short description of your package",
+  "version": "0.1.0",
+  "description": "Synesthesia gives you a feel for your code by turning it into sound.",
   "keywords": [],
   "activationCommands": {
     "atom-workspace": "synesthesia:toggle"
   },
-  "repository": "https://github.com/atom/synesthesia",
+  "repository": "https://github.com/dchacke/synesthesia",
   "license": "MIT",
   "engines": {
     "atom": ">=1.0.0 <2.0.0"
