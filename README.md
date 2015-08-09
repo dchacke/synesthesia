@@ -1,4 +1,4 @@
-# Synethesia
+# Synesthesia
 
 Synesthesia gives you a feel for your code by turning it into sound.
 
