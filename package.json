@@ -1,7 +1,7 @@
 {
   "name": "synesthesia",
   "main": "./lib/synesthesia",
-  "version": "0.1.1-0",
+  "version": "0.1.1-1",
   "description": "Synesthesia gives you a feel for your code by turning it into sound.",
   "keywords": [],
   "activationCommands": {
