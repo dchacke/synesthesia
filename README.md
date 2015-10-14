@@ -1,5 +1,7 @@
 # Synesthesia
 
+This package is not finished. Do not use it.
+
 Synesthesia gives you a feel for your code by turning it into sound.
 
 ## Installation
