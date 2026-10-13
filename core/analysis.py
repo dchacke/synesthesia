@@ -237,7 +237,8 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
     extents = function_extents(code_lines, functions, tab_size)
     counts = dict(
         lines=sum(1 for line in text_lines if line.strip()),
-        long_lines=sum(1 for line in text_lines if len(line.expandtabs(tab_size)) > limits.line_length),
+        long_lines=sum(1 for line in text_lines
+                       if len(line.expandtabs(tab_size)) > limits.line_length),
         trailing_whitespace=sum(1 for line in text_lines if line != line.rstrip()),
         duplicate_lines=duplicate_lines(text_lines),
         unbalanced_brackets=unbalanced_brackets(code) if check_brackets else 0,

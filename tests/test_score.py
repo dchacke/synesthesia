@@ -12,7 +12,8 @@ class ReadTest(unittest.TestCase):
         text = 'def f():\n    # note\n\n    x = (\n'
         code = 'def f():\n           \n\n    x = (\n'
         sheet = score.read(text, code, functions=[0], broken_lines=[3])
-        self.assertEqual([line.kind for line in sheet], ['function', 'comment', 'blank', 'code', 'blank'])
+        kinds = [line.kind for line in sheet]
+        self.assertEqual(kinds, ['function', 'comment', 'blank', 'code', 'blank'])
         self.assertEqual([line.depth for line in sheet][:4], [0, 1, 0, 1])
         self.assertEqual([line.broken for line in sheet], [False, False, False, True, False])
 

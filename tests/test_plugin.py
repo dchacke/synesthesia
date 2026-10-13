@@ -226,6 +226,11 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(r.syntax_errors, 1)
         self.assertEqual(r.health, analysis.health(1.0, 1))
 
+    def test_only_decisions_count_as_branches(self):
+        text = 'if x is not None:\n    y\nelse:\n    z\n'
+        view = View(text, scopes={self.plugin.BRANCHES: [(0, 2), (5, 7), (8, 11), (24, 28)]})
+        self.assertEqual(self.plugin.decisions(view, self.plugin.BRANCHES), [0])
+
     def test_syntax_checkers_catch_what_highlighting_misses(self):
         rejects = [sys.executable, '-c', 'import sys; sys.exit("end" not in sys.stdin.read())']
         self.sublime.settings['syntax_checkers'] = [
@@ -419,7 +424,8 @@ class ProjectTest(unittest.TestCase):
     def test_closed_files_are_measured_with_their_own_indentation(self):
         self.wait_for(lambda: self.conductor.report is not None)
         self.window.panel = None
-        deep = 'def f():\n' + ''.join('    ' * (d + 1) + 'if x:\n' for d in range(3)) + '    ' * 4 + 'y\n'
+        ifs = ''.join('    ' * (d + 1) + 'if x:\n' for d in range(3))
+        deep = 'def f():\n' + ifs + '    ' * 4 + 'y\n'
         panel = self.window.create_output_panel('synesthesia')
         panel._settings['tab_size'] = 2  # as when someone's default is 2
         self.assertEqual(PLUGIN.measure_hidden(self.window, 'deep.py', deep).deep_lines, 0)
@@ -427,9 +433,10 @@ class ProjectTest(unittest.TestCase):
 
     def test_hears_unsaved_edits_to_project_files(self):
         self.wait_for(lambda: self.conductor.watcher.ready)
-        self.conductor.listen(View('def f():\n    return g(1\n', path=self.path, window=self.window))
+        broken = 'def f():\n    return g(1\n'
+        self.conductor.listen(View(broken, path=self.path, window=self.window))
         self.assertEqual(self.accents, ['down'])
-        self.conductor.listen(View('def f():\n    return g(1\n\n', path=self.path, window=self.window))
+        self.conductor.listen(View(broken + '\n', path=self.path, window=self.window))
         self.assertEqual(self.accents, ['down'])  # typing that changes nothing is quiet
         elsewhere = os.path.join(self.folder.name, 'elsewhere.py')
         self.conductor.listen(View('x = 1\n', path=elsewhere, window=self.window))

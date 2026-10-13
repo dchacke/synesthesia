@@ -21,7 +21,8 @@ def list_files(folder, exclude):
     if os.path.isdir(os.path.join(folder, '.git')):
         try:
             out = subprocess.run(
-                ['git', '-C', folder, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+                ['git', '-C', folder, 'ls-files', '-z',
+                 '--cached', '--others', '--exclude-standard'],
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 timeout=10, check=True).stdout
             return [os.path.join(folder, p) for p in out.decode('utf-8', 'replace').split('\0')

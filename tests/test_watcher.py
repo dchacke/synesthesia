@@ -19,7 +19,8 @@ class ListTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             for name in ('a.py', 'lib/b.py', 'node_modules/c.js', '.hidden/d.py'):
                 write(os.path.join(root, name), '')
-            found = sorted(os.path.relpath(p, root) for p in watcher.list_files(root, ['node_modules']))
+            listed = watcher.list_files(root, ['node_modules'])
+            found = sorted(os.path.relpath(p, root) for p in listed)
             self.assertEqual(found, ['a.py', os.path.join('lib', 'b.py')])
 
 
@@ -31,7 +32,10 @@ class WatcherTest(unittest.TestCase):
         self.watcher = watcher.Watcher(
             [self.root.name], wanted=lambda p: p.endswith('.py'),
             measure=lambda path, text: len(text),
-            changed=lambda reports, changes, initial: self.calls.append((reports, changes, initial)))
+            changed=self.record)
+
+    def record(self, reports, changes, initial):
+        self.calls.append((reports, changes, initial))
 
     def path(self, name):
         return os.path.join(self.root.name, name)

@@ -34,5 +34,6 @@ def login_path():
         found = out.decode('utf-8', 'replace').rsplit('\n', 1)[-1].strip()
     except (OSError, subprocess.SubprocessError):
         found = ''
-    dirs = found.split(os.pathsep) + os.environ.get('PATH', '').split(os.pathsep) + list(FALLBACK_DIRS)
+    current = os.environ.get('PATH', '').split(os.pathsep)
+    dirs = found.split(os.pathsep) + current + list(FALLBACK_DIRS)
     return os.pathsep.join(dict.fromkeys(d for d in dirs if d))

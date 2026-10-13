@@ -100,7 +100,9 @@ class ExamineTest(unittest.TestCase):
         self.assertLess(report.quality, 1.0)
 
     def test_nesting_counts_from_the_enclosing_function(self):
-        wrapped = 'module A\n  class B\n    def c\n' + '            deep\n' + '    end\n  end\nend\n'
+        wrapped = ('module A\n  class B\n    def c\n'
+                   '            deep\n'
+                   '    end\n  end\nend\n')
         report = analysis.examine(wrapped, functions=[2], tab_size=2)
         self.assertEqual(report.deep_lines, 0)
         bare = '\n'.join(' ' * 4 * depth + 'x' for depth in range(8))

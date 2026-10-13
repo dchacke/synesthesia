@@ -36,6 +36,7 @@ ACCENT_GAP = 0.12  # seconds between accents, so a burst of changes cascades
 EARLY_BAR_GAP = 0.8  # when the stage changes, wait at least this long after the last bar
 BRANCHES = ('keyword.control.conditional, keyword.control.loop, '
             'keyword.control.exception.catch, keyword.operator.logical')
+NOT_DECISIONS = {'else', 'in', 'is', 'not', '!', 'of', 'then', 'do'}  # see decisions()
 
 conductor = None
 library = None  # the recorded instruments
@@ -123,6 +124,15 @@ def parses(view, text):
     return None
 
 
+def decisions(view, selector):
+    """Lines of the keywords matching `selector` that make decisions, such
+    as if, for, while, catch, and, or. Python scopes in, is and not like and
+    and or, and many languages scope else like if, but none of those adds a
+    path through the code."""
+    return [view.rowcol(r.begin())[0] for r in view.find_by_selector(selector)
+            if view.substr(r).strip() not in NOT_DECISIONS]
+
+
 def measure(view, tab_size=None):
     s = settings()
     text = view.substr(sublime.Region(0, view.size()))
@@ -141,7 +151,7 @@ def measure(view, tab_size=None):
         comments='\n'.join(view.substr(r) for r in view.find_by_selector('comment')),
         syntax_errors=len(errors),
         functions=functions,
-        branches=lines(s.get('branch_selector', BRANCHES)),
+        branches=decisions(view, s.get('branch_selector', BRANCHES)),
         tab_size=tab_size,
         limits=analysis.Limits(
             line_length=line_limit(view),

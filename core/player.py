@@ -36,7 +36,8 @@ class Player:
             self.stop()
         if sys.platform == 'win32':
             import winsound
-            winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+            flags = winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT
+            winsound.PlaySound(path, flags)
             return
         if self._command is None:
             raise RuntimeError('No audio player found. Install paplay, pw-play, or aplay.')

@@ -90,13 +90,15 @@ class FileTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             seconds, first = music.bar_file(LIBRARY, SHEET, 0, 2, 0.3, directory)
             with mock.patch.object(music, 'render') as render:
-                self.assertEqual(music.bar_file(LIBRARY, list(SHEET), 0, 2, 0.3, directory), (seconds, first))
+                again = music.bar_file(LIBRARY, list(SHEET), 0, 2, 0.3, directory)
+                self.assertEqual(again, (seconds, first))
             render.assert_not_called()
             other = score.read(CODE + 'x = 1\n')
             self.assertNotEqual(music.bar_file(LIBRARY, other, 0, 2, 0.3, directory)[1], first)
             with wave.open(first) as w:
                 self.assertEqual((w.getnchannels(), w.getframerate()), (2, music.RATE))
-                self.assertGreater(w.getnframes() / music.RATE, seconds)  # it rings into the next bar
+                # It rings on into the next bar.
+                self.assertGreater(w.getnframes() / music.RATE, seconds)
 
     def test_accent_file(self):
         with tempfile.TemporaryDirectory() as directory:
