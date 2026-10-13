@@ -37,7 +37,6 @@ precision highp float;
 uniform vec2 res;
 uniform float t;
 uniform float health;
-uniform float beat;
 uniform float calm;  // 1 when the system asks for reduced motion
 uniform sampler2D files;
 uniform vec4 pulses[${PULSES}];  // angle 0-1, start time, strength, way (-1, 0, 1)
@@ -68,10 +67,12 @@ vec3 tunnel(vec2 uv, float sick) {
   float u = fract(atan(uv.y, uv.x) / 6.28318 + 0.5 + z * twist + 0.08 * sick * sin(z * 1.3 + t));
   vec4 file = texture2D(files, vec2(u, 0.5));  // whose wall this is
   float warp = noise(vec2(u * 12.0, z * 2.0 - t)) * sick;
-  float wave = 0.5 + 0.5 * sin((z + warp) * 9.42);
-  float rings = pow(wave, 12.0);  // thin glowing hoops
+  // Glowing hoops, one per unit of depth, so at full speed they pass any
+  // spot less than twice a second, and soft enough not to read as flashes.
+  float wave = 0.5 + 0.5 * sin((z + warp) * 6.28318);
+  float rings = pow(wave, 6.0);
   vec3 hue = palette(z * 0.12 + u * 2.0 + t * 0.05);
-  vec3 col = mix(hue, file.rgb, 0.3) * (0.18 + 0.35 * wave) + hue * rings * 1.4;
+  vec3 col = mix(hue, file.rgb, 0.3) * (0.25 + 0.25 * wave) + hue * rings * 0.7;
   col += file.rgb * file.a;  // a file that just changed glows
   for (int i = 0; i < ${PULSES}; i++) {  // light racing down the tunnel from changed files
     vec4 p = pulses[i];
@@ -85,14 +86,14 @@ vec3 tunnel(vec2 uv, float sick) {
   }
   float fog = smoothstep(0.0, 0.4, r);
   vec3 far = mix(vec3(0.10, 0.0, 0.03), vec3(1.3, 1.2, 1.1), health);  // light at the end, or none
-  return mix(far * (0.8 + 0.15 * beat), col, fog);
+  return mix(far * 0.85, col, fog);
 }
 
 void main() {
   float sick = 1.0 - health;
   vec2 uv = (gl_FragCoord.xy - 0.5 * res) / res.y;
-  // Nothing here may flash more than three times a second, to keep it safe
-  // for people with photosensitive epilepsy.
+  // Nothing here may flash more than twice a second, to keep it safe for
+  // people with photosensitive epilepsy.
   uv += 0.12 * sick * (1.0 - calm) * vec2(sin(t * 0.9), cos(t * 0.7));  // the tunnel sways
   float tick = floor(t * 2.0);
   float band = floor(gl_FragCoord.y / (20.0 + 40.0 * hash(vec2(tick, 1.0))));
@@ -106,7 +107,6 @@ void main() {
   } else {
     col = tunnel(uv, sick);
   }
-  col *= 1.0 + 0.12 * beat;
   vec2 q = gl_FragCoord.xy / res;
   col *= 0.45 + 0.55 * pow(16.0 * q.x * q.y * (1.0 - q.x) * (1.0 - q.y), 0.25);
   gl_FragColor = vec4(col, 1.0);
@@ -126,7 +126,6 @@ let segments = [];  // {name, start, end, color}, around the tunnel
 let texelSegment = new Int32Array(MAP);
 const flashes = new Map();  // file name -> time it changed
 const pulses = [];  // {u, at, way}
-let barAt = -100;  // when the music's latest bar began
 
 function now() { return performance.now() / 1000; }
 
@@ -180,8 +179,6 @@ function handle(message) {
     hud.last.style.transition = 'none';
     hud.last.style.opacity = 1;
     requestAnimationFrame(() => { hud.last.style.transition = 'opacity 3s'; hud.last.style.opacity = 0; });
-  } else if (message.type === 'bar') {
-    barAt = t;
   }
 }
 
@@ -227,8 +224,8 @@ function start() {
   const texels = new Uint8Array(MAP * 4);
 
   const u = name => gl.getUniformLocation(program, name);
-  const uniforms = {res: u('res'), t: u('t'), health: u('health'), beat: u('beat'),
-                    calm: u('calm'), files: u('files'), pulses: u('pulses')};
+  const uniforms = {res: u('res'), t: u('t'), health: u('health'), calm: u('calm'),
+                    files: u('files'), pulses: u('pulses')};
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const pulseData = new Float32Array(PULSES * 4);
 
@@ -266,13 +263,10 @@ function start() {
     pulses.forEach((p, i) => {
       pulseData.set([p.u, p.at, 1, p.way === 'up' ? 1 : p.way === 'down' ? -1 : 0], i * 4);
     });
-    const since = (t - barAt) / 0.35;  // a soft swell at the start of each bar
-    const pulse = Math.exp(-since * since);
 
     gl.uniform2f(uniforms.res, width, height);
     gl.uniform1f(uniforms.t, t);
     gl.uniform1f(uniforms.health, shownHealth);
-    gl.uniform1f(uniforms.beat, pulse);
     gl.uniform1f(uniforms.calm, reducedMotion.matches ? 1 : 0);
     gl.uniform1i(uniforms.files, 0);
     gl.uniform4fv(uniforms.pulses, pulseData);

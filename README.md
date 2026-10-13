@@ -108,10 +108,9 @@ decides how the flight feels. Beautiful code is a fast, smooth, neon flight
 toward a bright light; as it gets worse the tunnel slows, twists and sways,
 the colors bruise, and at the bottom the picture tears and splits and the
 light at the end goes out. Every change sends light racing down the tunnel
-from its file, green when it got better and red when it got worse, and the
-tunnel swells gently with each bar of the music. Nothing flashes more than
-three times a second, and the motion calms down when macOS's Reduce Motion
-setting is on.
+from its file, green when it got better and red when it got worse. Nothing
+flashes more than twice a second, the rings are kept soft, and the motion
+calms down when macOS's Reduce Motion setting is on.
 
 The page talks to Sublime through a small server on 127.0.0.1 that only
 answers requests carrying the random token in the page's address. To try it

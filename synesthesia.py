@@ -546,12 +546,6 @@ class Conductor:
                        'health': r.health, 'broken': r.bugs > 0} for name, r in files.items()],
         })
 
-    def on_bar(self, stage):
-        """A bar started playing, so the visualizer can pulse on its beats."""
-        if self.visualizer is not None:
-            s = music.STAGES[stage]
-            self.visualizer.publish({'type': 'bar', 'step': s.step, 'steps': music.STEPS})
-
     def refresh_map(self):
         if self.map is not None and self.map.window() is None:
             self.map = None  # its tab was closed
@@ -675,7 +669,6 @@ class Band(threading.Thread):
                     ready = None
                     continue  # the code changed while the bar was rendering
                 self.player.play(ready[2])
-                self.conductor.on_bar(plan[2])
                 started, seconds = time.monotonic(), ready[1]
                 self.cursor = plan[1] + music.STEPS
                 upcoming = self.next_bar()

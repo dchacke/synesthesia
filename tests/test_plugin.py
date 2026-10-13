@@ -386,7 +386,7 @@ class PluginTest(unittest.TestCase):
         self.conductor.listen(view)
         self.assertIsNone(self.conductor.map)
 
-    def test_the_visualizer_hears_the_state_changes_and_bars(self):
+    def test_the_visualizer_hears_the_state_and_changes(self):
         opened = []
         self.sublime.run_command = lambda name, args=None: opened.append(args['url'])
         view = self.sublime.window_list[0].open(View('a = 1\n', path='/p/a.py'))
@@ -398,8 +398,7 @@ class PluginTest(unittest.TestCase):
         self.conductor.visualizer.publish = sent.append
         view.text = 'a = (\n'
         self.conductor.listen(view)
-        self.conductor.on_bar(3)
-        self.assertEqual([m['type'] for m in sent], ['change', 'state', 'bar'])
+        self.assertEqual([m['type'] for m in sent], ['change', 'state'])
         self.assertEqual(sent[0]['way'], 'down')
         self.assertTrue(sent[1]['files'][0]['broken'])
 

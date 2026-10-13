@@ -34,7 +34,6 @@ def main(port=8765, token='demo'):
                   'health': max(0.0, min(1.0, health + rng.uniform(-0.2, 0.2))),
                   'broken': health < 0.3 and rng.random() < 0.3} for name in FILES]
         visualizer.publish({'type': 'state', 'health': health, 'files': files})
-        visualizer.publish({'type': 'bar', 'step': 0.26 + 0.4 * (1 - health), 'steps': 8})
         if rng.random() < 0.6:
             name = rng.choice(FILES)
             visualizer.publish({'type': 'change', 'file': name, 'label': name,
