@@ -93,6 +93,11 @@ class Watcher(threading.Thread):
             reports = dict(self.reports)
         self.changed(reports, [(path, old, report)], initial=False, edited=True)
 
+    def snapshot(self):
+        """The latest reports, safely copied."""
+        with self._lock:
+            return dict(self.reports)
+
     def refresh(self, path):
         """Read `path` from disk again, as when unsaved changes are discarded."""
         with self._lock:

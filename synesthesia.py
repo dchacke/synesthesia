@@ -186,8 +186,9 @@ class Conductor:
         self.lock = threading.Lock()  # around what's playing, which the band changes too
         self.scores = {}  # view id -> last report, for telling which way a file moved
         self.band = None
-        self.watcher = None
-        self.watched = None  # (window id, folders) the watcher covers
+        self.watchers = {}  # window id -> (watcher, folders), for every project window
+        self.window_id = None  # the project window being heard, if any
+        self.closing = set()  # ids of windows that are closing
         self.accent_player = Player()
         self.accents = ThreadPoolExecutor(max_workers=1)
         self.renderer = ThreadPoolExecutor(max_workers=1)
@@ -208,18 +209,12 @@ class Conductor:
         if not enabled:
             self.stop_watching()
             self.accent_player.stop()
-            for window in sublime.windows():
-                for view in window.views():
-                    view.erase_status(STATUS_KEY)
+            self.silence()
             return
         self.warmer.submit(self.warm_up)
-        window = sublime.active_window()
-        if project_mode() and window.folders():
-            self.watch(window)
-        else:
+        if not project_mode():
             self.stop_watching()
-            view = window.active_view()
-            sublime.set_timeout_async(lambda: self.listen(view))
+        sublime.set_timeout_async(self.retarget)
 
     def shutdown(self):
         self.stop_watching()
@@ -236,12 +231,17 @@ class Conductor:
         """Score `view` and let the music follow."""
         if not settings().get('enabled', True) or not wants(view):
             return
-        if self.watcher is not None:
+        window = view.window()
+        entry = self.watchers.get(window.id()) if window is not None and project_mode() else None
+        if entry is not None:
+            if window.id() != self.window_id:
+                self.watch(window)
             # Unsaved edits count toward the project; saved ones reach the
             # watcher from disk.
             if view.file_name() and not saved:
-                self.watcher.update(view.file_name(), measure(view))
+                entry[0].update(view.file_name(), measure(view))
             return
+        self.window_id = None  # a file of its own, not a project
         report = measure(view)
         previous = self.scores.get(view.id())
         self.scores[view.id()] = report
@@ -254,16 +254,81 @@ class Conductor:
 
     def forget(self, view):
         self.scores.pop(view.id(), None)
-        if self.watcher is not None and view.file_name() and view.is_dirty():
-            self.watcher.refresh(view.file_name())  # its unsaved edits are gone
+        watcher = self.watcher
+        if watcher is not None and view.file_name() and view.is_dirty():
+            watcher.refresh(view.file_name())  # its unsaved edits are gone
+        if view.id() == self.playing:
+            sublime.set_timeout_async(self.retarget, 100)  # its file closed
+
+    def retarget(self):
+        """Carry on with whatever is open now: the active window's project
+        in project mode, else an open code file, else fall silent. Used at
+        the start and whenever what's being heard closes."""
+        if not settings().get('enabled', True):
+            return
+        active = sublime.active_window()
+        windows = [w for w in [active] + [w for w in sublime.windows() if w != active]
+                   if w is not None and w.id() not in self.closing]
+        if project_mode():
+            for window in windows:
+                if window.folders():
+                    self.watch(window)
+                    return
+        for window in windows:
+            for view in [window.active_view()] + window.views():
+                if wants(view):
+                    self.listen(view)
+                    return
+        self.silence()
+
+    def silence(self):
+        """Fall silent gracefully: no new bars, but the last one rings out."""
+        with self.lock:
+            self.report = self.sheet = self.playing = None
+            self.project = {}
+        self.window_id = None
+        for window in sublime.windows():
+            for view in window.views():
+                view.erase_status(STATUS_KEY)
+
+    def let_go(self, window, closing):
+        """`window` is closing (`closing`) or closing its project: stop
+        watching it, and if it was being heard, carry on with what's open."""
+        if closing:
+            self.closing.add(window.id())
+        entry = self.watchers.pop(window.id(), None)
+        if entry is not None:
+            entry[0].stop()
+        if window.id() == self.window_id or self.playing in {v.id() for v in window.views()}:
+            self.window_id = None
+            sublime.set_timeout_async(self.retarget, 300)
 
     # Project mode
 
+    @property
+    def watcher(self):
+        """The watcher of the project being heard, if any."""
+        entry = self.watchers.get(self.window_id)
+        return entry[0] if entry else None
+
     def watch(self, window):
+        """Hear `window`'s project. Every project window keeps its watcher,
+        so switching back to one is instant, and only the one being heard
+        makes a sound."""
         folders = window.folders()
-        if self.watched == (window.id(), folders):
+        entry = self.watchers.get(window.id())
+        if entry is not None and entry[1] != folders:
+            entry[0].stop()
+            entry = None
+        if entry is None:
+            entry = self.watchers[window.id()] = (self.start_watcher(window, folders), folders)
+        if window.id() == self.window_id:
             return
-        self.stop_watching()
+        self.window_id = window.id()
+        if entry[0].ready:
+            self.hear_project(entry[0].snapshot(), [], initial=True)
+
+    def start_watcher(self, window, folders):
         s = settings()
         syntaxes = {}
 
@@ -289,7 +354,7 @@ class Conductor:
             return measure(panel)
 
         def progress(done, total):
-            if done % 25 == 0:
+            if done % 25 == 0 and window.id() == self.window_id:
                 self.status('♪ listening to the project… {}/{}'.format(done, total))
 
         def changed(reports, changes, initial, edited=False):
@@ -298,22 +363,23 @@ class Conductor:
             if initial:
                 print('Synesthesia: listening to {} source files in {}'.format(
                     len(reports), ', '.join(folders)))
-            self.hear_project(reports, changes, initial, edited)
+            if window.id() == self.window_id:  # other projects keep quiet
+                self.hear_project(reports, changes, initial, edited)
 
-        self.watcher = Watcher(
+        watcher = Watcher(
             folders, wanted, measure_file, changed, progress, report_failure,
             interval=s.get('poll_interval', 0.5),
             exclude=s.get('project_exclude', []),
             max_files=s.get('max_project_files', 2000),
             max_bytes=s.get('max_file_size', 2000000))
-        self.watched = (window.id(), folders)
-        self.watcher.start()
+        watcher.start()
+        return watcher
 
     def stop_watching(self):
-        if self.watcher is not None:
-            self.watcher.stop()
-        self.watcher = None
-        self.watched = None
+        for watcher, _ in self.watchers.values():
+            watcher.stop()
+        self.watchers = {}
+        self.window_id = None
 
     def hear_project(self, reports, changes, initial, edited=False):
         """`edited` means the changes come from typing rather than from disk;
@@ -528,6 +594,18 @@ class SynesthesiaListener(sublime_plugin.EventListener):
         self.edits.pop(view.id(), None)
         if conductor:
             conductor.forget(view)
+
+    def on_pre_close_window(self, window):
+        if conductor:
+            conductor.let_go(window, closing=True)
+
+    def on_pre_close_project(self, window):
+        if conductor:
+            conductor.let_go(window, closing=False)
+
+    def on_load_project_async(self, window):
+        if conductor and project_mode():
+            conductor.watch(window)  # a different project in the same window
 
 
 class SynesthesiaFillCommand(sublime_plugin.TextCommand):

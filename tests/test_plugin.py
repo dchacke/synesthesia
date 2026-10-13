@@ -35,9 +35,12 @@ class Region:
 
 
 class View:
-    def __init__(self, text, scopes=None, scope='source.python', element=None, path=None, **settings):
+    def __init__(self, text, scopes=None, scope='source.python', element=None, path=None,
+                 window=None, **settings):
         self.text = text
         self.path = path
+        self._window = window
+        self.valid = True
         self.scopes = scopes or {}
         self.scope = scope
         self._element = element
@@ -48,13 +51,13 @@ class View:
         return id(self)
 
     def is_valid(self):
-        return True
+        return self.valid
 
     def element(self):
         return self._element
 
     def window(self):
-        return None
+        return self._window
 
     def file_name(self):
         return self.path
@@ -88,6 +91,65 @@ class View:
         self.status.pop(key, None)
 
 
+class Panel(View):
+    """An output panel: scores files that aren't open."""
+
+    def __init__(self):
+        super().__init__('', element='output:synesthesia')
+        self._syntax = None
+
+    def syntax(self):
+        return self._syntax
+
+    def assign_syntax(self, syntax):
+        self._syntax = syntax
+
+    def run_command(self, name, args):
+        assert name == 'synesthesia_fill'
+        self.text = args['text']
+
+
+class Window:
+    ids = iter(range(100, 10 ** 6))
+
+    def __init__(self, folder=None):
+        self.folder = folder
+        self.panel = None
+        self._id = next(Window.ids)
+        self._views = []
+
+    def open(self, view):
+        view._window = self
+        self._views.insert(0, view)  # the newest is active
+        return view
+
+    def close(self, view):
+        view.valid = False
+        self._views.remove(view)
+
+    def id(self):
+        return self._id
+
+    def folders(self):
+        return [self.folder] if self.folder else []
+
+    def views(self):
+        return list(self._views)
+
+    def active_view(self):
+        return self._views[0] if self._views else None
+
+    def find_output_panel(self, name):
+        return self.panel
+
+    def create_output_panel(self, name, unlisted=False):
+        self.panel = Panel()
+        return self.panel
+
+    def destroy_output_panel(self, name):
+        self.panel = None
+
+
 def install_fakes(cache):
     sublime = types.ModuleType('sublime')
     sublime.Region = Region
@@ -98,10 +160,9 @@ def install_fakes(cache):
     sublime.status_message = lambda message: None
     sublime.cache_path = lambda: cache
     sublime.set_timeout_async = lambda callback, delay=0: callback()
-    sublime.windows = lambda: []
-    sublime.active_view = None
-    sublime.active_window = lambda: types.SimpleNamespace(
-        active_view=lambda: sublime.active_view, folders=lambda: [], id=lambda: 1)
+    sublime.window_list = [Window()]  # the active one first
+    sublime.windows = lambda: list(sublime.window_list)
+    sublime.active_window = lambda: sublime.window_list[0] if sublime.window_list else None
     sublime.find_syntax_for_file = lambda path, first_line='': (
         types.SimpleNamespace(scope='source.python') if path.endswith('.py') else None)
     sublime.score_selector = lambda scope, selector: int(scope.startswith(selector))
@@ -139,6 +200,7 @@ class PluginTest(unittest.TestCase):
         self.sublime = SUBLIME
         self.sublime.settings.clear()
         self.sublime.settings.update(enabled=True, mode='chime', listen_to='file')
+        self.sublime.window_list = [Window()]
         self.plugin = PLUGIN
         warm_up = mock.patch.object(self.plugin.Conductor, 'warm_up')  # no rendering in tests
         warm_up.start()
@@ -241,7 +303,8 @@ class PluginTest(unittest.TestCase):
     def test_band_walks_through_the_project_file_by_file(self):
         a, b = report(1.0), report(1.0)
         a.sheet, b.sheet = ['a1', 'a2'], ['b1']
-        self.conductor.watcher = mock.Mock()
+        self.conductor.watchers = {1: (mock.Mock(), [])}
+        self.conductor.window_id = 1
         self.conductor.project = {'b.py': b, 'a.py': a}
         self.conductor.follow('a.py', a.sheet, None)
         self.conductor.report = a
@@ -251,7 +314,6 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(band.next_bar()[:2], (['b1'], 0))
         band.cursor = 8
         self.assertEqual(band.next_bar()[:2], (['a1', 'a2'], 0))  # and around again
-        self.conductor.watcher = None
 
     def test_file_mode_goes_back_to_the_top(self):
         view = View('a = 1\n')
@@ -261,6 +323,20 @@ class PluginTest(unittest.TestCase):
         band.cursor = 8
         sheet, cursor, _ = band.next_bar()
         self.assertEqual((sheet, cursor), (self.conductor.sheet, 0))
+
+    def test_closing_the_file_moves_on_or_falls_silent(self):
+        window = self.sublime.window_list[0]
+        first = window.open(View('a = 1\n'))
+        window.open(View('# notes', scope='text.plain'))
+        second = window.open(View('b = 2\n'))
+        self.conductor.listen(second)
+        window.close(second)
+        self.conductor.forget(second)
+        self.assertEqual(self.conductor.playing, first.id())  # skipping the prose
+        window.close(first)
+        self.conductor.forget(first)
+        self.assertIsNone(self.conductor.report)
+        self.assertIsNone(self.conductor.sheet)
 
     def test_project_mode_plays_the_file_that_changed(self):
         a, b = report(1.0), report(0.9)
@@ -295,50 +371,11 @@ class PluginTest(unittest.TestCase):
         self.assertFalse(command.is_checked('listen_to', 'file'))
 
 
-class Panel(View):
-    """An output panel: scores files that aren't open."""
-
-    def __init__(self):
-        super().__init__('', element='output:synesthesia')
-        self._syntax = None
-
-    def syntax(self):
-        return self._syntax
-
-    def assign_syntax(self, syntax):
-        self._syntax = syntax
-
-    def run_command(self, name, args):
-        assert name == 'synesthesia_fill'
-        self.text = args['text']
-
-
-class Window:
-    def __init__(self, folder):
-        self.folder = folder
-        self.panel = None
-
-    def id(self):
-        return 7
-
-    def folders(self):
-        return [self.folder]
-
-    def find_output_panel(self, name):
-        return self.panel
-
-    def create_output_panel(self, name, unlisted=False):
-        self.panel = Panel()
-        return self.panel
-
-    def destroy_output_panel(self, name):
-        self.panel = None
-
-
 class ProjectTest(unittest.TestCase):
     def setUp(self):
         SUBLIME.settings.clear()
         SUBLIME.settings.update(enabled=True, mode='chime', listen_to='project', poll_interval=0.02)
+        SUBLIME.window_list = [Window()]
         warm_up = mock.patch.object(PLUGIN.Conductor, 'warm_up')
         warm_up.start()
         self.addCleanup(warm_up.stop)
@@ -354,7 +391,9 @@ class ProjectTest(unittest.TestCase):
         self.write('def f():\n    return g(1)\n')
         with open(os.path.join(self.folder.name, 'notes.txt'), 'w') as f:
             f.write('(((')
-        self.conductor.watch(Window(self.folder.name))
+        self.window = Window(self.folder.name)
+        SUBLIME.window_list.insert(0, self.window)
+        self.conductor.watch(self.window)
 
     def write(self, text):
         with open(self.path, 'w') as f:
@@ -379,12 +418,54 @@ class ProjectTest(unittest.TestCase):
 
     def test_hears_unsaved_edits_to_project_files(self):
         self.wait_for(lambda: self.conductor.watcher.ready)
-        self.conductor.listen(View('def f():\n    return g(1\n', path=self.path))
+        self.conductor.listen(View('def f():\n    return g(1\n', path=self.path, window=self.window))
         self.assertEqual(self.accents, ['down'])
-        self.conductor.listen(View('def f():\n    return g(1\n\n', path=self.path))
+        self.conductor.listen(View('def f():\n    return g(1\n\n', path=self.path, window=self.window))
         self.assertEqual(self.accents, ['down'])  # typing that changes nothing is quiet
-        self.conductor.listen(View('x = 1\n', path=os.path.join(self.folder.name, 'elsewhere.py')))
+        elsewhere = os.path.join(self.folder.name, 'elsewhere.py')
+        self.conductor.listen(View('x = 1\n', path=elsewhere, window=self.window))
         self.assertEqual(self.accents, ['down'])  # not part of the project
+
+    def other_project(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        with open(os.path.join(folder.name, 'b.py'), 'w') as f:
+            f.write('def b():\n    return 2\n')
+        window = Window(folder.name)
+        SUBLIME.window_list.insert(0, window)
+        return window
+
+    def test_switching_windows_switches_projects(self):
+        self.wait_for(lambda: self.conductor.playing == self.path)
+        other = self.other_project()
+        self.conductor.watch(other)
+        self.wait_for(lambda: str(self.conductor.playing).endswith('b.py'))
+        first = self.conductor.watchers[self.window.id()][0]
+        self.write('def f():\n    return g(1\n')  # in the project you aren't hearing
+        time.sleep(0.2)
+        self.assertEqual(self.accents, [])
+        self.conductor.watch(self.window)
+        self.assertIs(self.conductor.watchers[self.window.id()][0], first)  # no rescan
+        self.assertEqual(self.conductor.playing, self.path)
+
+    def test_closing_the_window_moves_on_or_falls_silent(self):
+        self.wait_for(lambda: self.conductor.playing == self.path)
+        other = self.other_project()
+        SUBLIME.window_list.remove(self.window)
+        self.conductor.let_go(self.window, closing=True)
+        self.wait_for(lambda: str(self.conductor.playing).endswith('b.py'))
+        self.assertNotIn(self.window.id(), self.conductor.watchers)
+        SUBLIME.window_list.remove(other)
+        self.conductor.let_go(other, closing=True)
+        self.assertIsNone(self.conductor.report)
+        self.assertEqual(self.conductor.watchers, {})
+
+    def test_closing_the_project_moves_on_to_open_files(self):
+        self.wait_for(lambda: self.conductor.playing == self.path)
+        view = self.window.open(View('x = 1\n'))
+        self.window.folder = None  # Project > Close Project
+        self.conductor.let_go(self.window, closing=False)
+        self.assertEqual(self.conductor.playing, view.id())
 
 
 if __name__ == '__main__':

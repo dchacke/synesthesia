@@ -83,6 +83,11 @@ went into the current score, and the status bar shows the stage.
 
 Switch with `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`.
 
+Synesthesia follows you between windows and files, switching at the end of
+the bar. When the window or file it's playing closes, it moves on to
+whatever is open, and when nothing is, it lets the last bar ring out and
+falls silent.
+
 ## Modes
 
 - **ambient** (default): the code played continuously, plus the accents.
