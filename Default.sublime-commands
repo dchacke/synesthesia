@@ -1,10 +1,12 @@
 [
     { "caption": "Synesthesia: Toggle", "command": "synesthesia_toggle" },
-    { "caption": "Synesthesia: Ambient Mode", "command": "synesthesia_mode", "args": { "mode": "ambient" } },
-    { "caption": "Synesthesia: Chime Mode", "command": "synesthesia_mode", "args": { "mode": "chime" } },
+    { "caption": "Synesthesia: Listen to File", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "file" } },
+    { "caption": "Synesthesia: Listen to Project", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "project" } },
+    { "caption": "Synesthesia: Ambient Mode", "command": "synesthesia_set", "args": { "key": "mode", "value": "ambient" } },
+    { "caption": "Synesthesia: Chime Mode", "command": "synesthesia_set", "args": { "key": "mode", "value": "chime" } },
     { "caption": "Synesthesia: Play Now", "command": "synesthesia_play" },
     { "caption": "Synesthesia: Explain Score", "command": "synesthesia_explain" },
-    { "caption": "Synesthesia: Play All Moods", "command": "synesthesia_demo" },
+    { "caption": "Synesthesia: Play All Stages", "command": "synesthesia_demo" },
     {
         "caption": "Preferences: Synesthesia Settings",
         "command": "edit_settings",

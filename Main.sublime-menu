@@ -7,12 +7,15 @@
                 "children": [
                     { "caption": "Enabled", "command": "synesthesia_toggle", "checkbox": true },
                     { "caption": "-" },
-                    { "caption": "Ambient", "command": "synesthesia_mode", "args": { "mode": "ambient" }, "checkbox": true },
-                    { "caption": "Chime", "command": "synesthesia_mode", "args": { "mode": "chime" }, "checkbox": true },
+                    { "caption": "Listen to File", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "file" }, "checkbox": true },
+                    { "caption": "Listen to Project", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "project" }, "checkbox": true },
+                    { "caption": "-" },
+                    { "caption": "Ambient", "command": "synesthesia_set", "args": { "key": "mode", "value": "ambient" }, "checkbox": true },
+                    { "caption": "Chime", "command": "synesthesia_set", "args": { "key": "mode", "value": "chime" }, "checkbox": true },
                     { "caption": "-" },
                     { "caption": "Play Now", "command": "synesthesia_play" },
                     { "caption": "Explain Score", "command": "synesthesia_explain" },
-                    { "caption": "Play All Moods", "command": "synesthesia_demo" }
+                    { "caption": "Play All Stages", "command": "synesthesia_demo" }
                 ]
             }
         ]

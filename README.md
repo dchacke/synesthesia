@@ -2,47 +2,68 @@
 
 Hear the state of your code in Sublime Text.
 
-Healthy code plays a warm, just-intoned major chord. As bugs creep in, the
-harmony darkens to minor, then diminished, and finally collapses into a
-detuned cluster that wavers and sags, over wind and a ghostly whistle. Fix
-the bugs and it resolves again.
+Beautiful code plays a harp over a singing bowl. As it gets worse the music
+moves to marimba, then vibraphone in a minor key, then church bells and dead,
+muted strings, then detuned bells and gongs, until cursed code is all gongs,
+creaks and bowed metal screeching like a horror film. Changes also get
+a short accent: rising if things got better, falling if they got worse.
 
-## Moods
+## Stages
 
-| Health    | Mood    | Sound                                                     |
-| --------- | ------- | --------------------------------------------------------- |
-| 0.85–1.00 | radiant | major chord with an added ninth, arpeggiated, sparkling   |
-| 0.65–0.85 | bright  | major chord                                               |
-| 0.45–0.65 | wistful | minor chord                                               |
-| 0.25–0.45 | uneasy  | diminished chord, slightly out of tune, beginning to sag  |
-| 0.00–0.25 | haunted | cluster of minor seconds and tritones, wind, a ghost      |
+| Health    | Stage     | Sound                                                    |
+| --------- | --------- | -------------------------------------------------------- |
+| 0.90–1.00 | beautiful | harp arpeggios in major with an added ninth, glass, bowl |
+| 0.75–0.90 | good      | harp arpeggios in major                                  |
+| 0.60–0.75 | decent    | marimba in open fifths, plain and dry                    |
+| 0.45–0.60 | meh       | vibraphone in minor, slower, descending                  |
+| 0.30–0.45 | bad       | a church bell, hesitant muted strings, a beating drone   |
+| 0.15–0.30 | awful     | detuned bells, stumbling strings, a gong, bowed metal    |
+| 0.00–0.15 | cursed    | screeching bowed metal, a tritone of gongs, creaks       |
 
-Within each mood the sound keeps shifting: the lower the health, the more the
-voices detune and waver, the lower the register, and the longer the reverb.
+As things get worse the tempo slows, the register drops and the room grows
+from a small hall into a cavern. All instruments are physically modelled in
+pure Python: Karplus-Strong strings, and modal synthesis for everything
+struck or bowed.
 
 ## How code is judged
 
-Every view matching the `selector` setting (`source` by default) gets a health
-score between 0 and 1.
+**Quality** starts at 1.0 and falls toward 0.3 as smells pile up: functions
+longer than 40 lines, functions with more than 10 branches, code nested more
+than four levels inside its function, duplicated chunks, lines longer than
+your widest ruler, trailing whitespace, tabs mixed with spaces, and TODO,
+FIXME, XXX and HACK comments. Smells count in proportion to the file's size,
+so one long function sinks a short file more than a long one. Mess alone
+never drops below bad.
 
-- **Bugs** weigh the most. Each one counts: spans the syntax definition marks
-  as `invalid` (code it cannot parse) and brackets that never find their
-  partner (ignoring brackets in strings and comments). One bug in otherwise
-  clean code is enough to sound uneasy; three sound haunted.
-- **Mess** weighs less: lines longer than your widest ruler, lines nested more
-  than four levels deep, trailing whitespace, tabs mixed with spaces, and
-  TODO, FIXME, XXX, and HACK comments. Mess alone never drops below wistful.
+**Bugs** divide what's left: spans the syntax definition marks as `invalid`
+(code it cannot parse) and brackets that never close, outside strings and
+comments. One bug in beautiful code sounds meh, two bad, three awful, eight
+cursed.
 
-`Synesthesia: Explain Score` shows what went into the current file's score.
-The status bar shows the mood.
+Everything comes from Sublime's own syntax definitions (scopes such as
+`entity.name.function` and `keyword.control.conditional`), so it works for
+any language with a decent syntax. `Synesthesia: Explain Score` shows what
+went into the current score, and the status bar shows the stage.
+
+## Listening to a file or a project
+
+- **file** (default): the file you are looking at, as you type.
+- **project**: every source file in the window's folders, as it changes on
+  disk. Made for coding agents: you don't need to look at any file to hear
+  the agent work. Each file it writes plays an accent in that file's stage,
+  rising or falling with the change, and the ambient music follows the whole
+  project: quality averaged by file size, with every bug in every file
+  counted. Synesthesia checks for changes twice a second and skips whatever
+  git ignores.
+
+Switch with `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`.
 
 ## Modes
 
-- **ambient** (default): a continuous drone that follows the file you are
-  looking at. Every seven seconds a new segment fades in over the old one, so
-  the drone morphs as you type, fix, and switch files.
-- **chime**: a short phrase whenever the mood changes (after you pause typing
-  or switch files) and whenever you save.
+- **ambient** (default): a continuous stream of phrases in the current
+  stage, plus the accents. When the stage changes, the next phrase starts
+  right away.
+- **chime**: only the accents, and a phrase when the stage changes.
 
 ## Install
 
@@ -53,20 +74,21 @@ Link this folder into Sublime Text's `Packages` folder under the name
 ln -s "$PWD" "$HOME/Library/Application Support/Sublime Text/Packages/Synesthesia"
 ```
 
-Then run `Synesthesia: Play All Moods` from the command palette to hear the
-whole range.
+Then run `Synesthesia: Play All Stages` from the command palette to hear the
+whole range. Sounds are rendered once, in the background, and cached.
 
 Requires Sublime Text 4. Sound is played with `afplay` on macOS and `paplay`,
 `pw-play`, or `aplay` on Linux. On Windows it uses `winsound`, which cannot
-overlap sounds, so the ambient drone cuts rather than crossfades.
+overlap sounds, so each sound cuts off the one before.
 
 ## Commands
 
 - `Synesthesia: Toggle`
+- `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`
 - `Synesthesia: Ambient Mode` and `Synesthesia: Chime Mode`
-- `Synesthesia: Play Now` chimes the current file's score
+- `Synesthesia: Play Now` plays a phrase for the current score
 - `Synesthesia: Explain Score`
-- `Synesthesia: Play All Moods`
+- `Synesthesia: Play All Stages`
 - `Preferences: Synesthesia Settings`
 
 The same commands are under Tools > Synesthesia.
