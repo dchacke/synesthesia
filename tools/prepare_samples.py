@@ -21,26 +21,33 @@ import tempfile
 import wave
 
 RATE = 32000
-NOTES = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11}
+NOTES = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
+         'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11}
+
+
+def files(pattern, names):
+    return [pattern.format(name) for name in names.split()]
+
 
 # instrument: (source files, seconds to keep, octaves the source names are
 # below the sounding pitch, or None for unpitched). VSCO names cello,
 # contrabass, marimba and glockenspiel notes an octave low.
 SOURCES = {
-    'harp': (['Strings/Harp/KSHarp_{}_mf.wav'.format(n) for n in
-              'D2 F2 A2 C3 E3 G3 B3 D4 F4 A4 C5 E5 G5'.split()], 4.5, 0),
-    'piano': (['Keys/Upright Piano/Player_dyn1_rr1_{:03d}.wav'.format(i) for i in range(14, 26, 2)], 5.0, 0),
-    'cello': (['Strings/Cello Section/susvib/susvib_{}_v1_1.wav'.format(n) for n in 'D2 F2 A2 C3 E3'.split()], 5.0, 1),
-    'cello_tremolo': (['Strings/Cello Section/trem/trem_{}_v1_1.wav'.format(n) for n in 'D2 A2'.split()], 4.0, 1),
-    'bass_pizz': (['Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_{}_v3_rr1.wav'.format(n) for n in 'C1 E1'.split()], 2.5, 1),
+    'harp': (files('Strings/Harp/KSHarp_{}_mf.wav',
+                   'D2 F2 A2 C3 E3 G3 B3 D4 F4 A4 C5 E5 G5'), 4.5, 0),
+    'piano': (files('Keys/Upright Piano/Player_dyn1_rr1_{}.wav',
+                    '014 016 018 020 022 024'), 5.0, 0),
+    'cello': (files('Strings/Cello Section/susvib/susvib_{}_v1_1.wav', 'D2 F2 A2 C3 E3'), 5.0, 1),
+    'cello_tremolo': (files('Strings/Cello Section/trem/trem_{}_v1_1.wav', 'D2 A2'), 4.0, 1),
+    'bass_pizz': (files('Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_{}_v3_rr1.wav',
+                        'C1 E1'), 2.5, 1),
     'bass_sustain': (['Strings/Solo Contrabass/SusNV/BKCtbss_SusNV_D1_v1_rr1.wav'], 5.0, 1),
     'bass_tremolo': (['Strings/Solo Contrabass/Trem/BKCtbss_Trem_E1_v1_rr1.wav'], 4.0, 1),
-    'marimba': (['Percussion/Marimba/Marimba_hit_Outrigger_{}_loud_01.wav'.format(n) for n in
-                 'C2 G2 F3 C4 G4 C6'.split()], 2.5, 1),
-    'glock': (['Percussion/Glock/glock_medium_{}.wav'.format(n) for n in 'G4 C5 G5 C6'.split()], 3.5, 1),
-    'bells': (['Percussion/TB_hit_{}.wav'.format(n) for n in
-               'C4_v4_rr1 G4_v4_rr1 C5_v4_rr1 F5_v3_rr1'.split()], 6.0, 0),
-    'timpani': (['Percussion/Timpani/Timpani{}_Hit_v3_rr1_Sum.wav'.format(n) for n in (1, 3, 5)]
+    'marimba': (files('Percussion/Marimba/Marimba_hit_Outrigger_{}_loud_01.wav',
+                      'C2 G2 F3 C4 G4 C6'), 2.5, 1),
+    'glock': (files('Percussion/Glock/glock_medium_{}.wav', 'G4 C5 G5 C6'), 3.5, 1),
+    'bells': (files('Percussion/TB_hit_{}.wav', 'C4_v4_rr1 G4_v4_rr1 C5_v4_rr1 F5_v3_rr1'), 6.0, 0),
+    'timpani': (files('Percussion/Timpani/Timpani{}_Hit_v3_rr1_Sum.wav', '1 3 5')
                 + ['Percussion/Timpani/Rolls/Timpani1_Roll_v3_rr1_Sum.wav'], 4.0, None),
     'gong': (['Percussion/gongHit_mf.wav', 'Percussion/gongHit_p.wav',
               'Percussion/gongscrape_mf.wav', 'Percussion/gongscrape_pp.wav'], 8.0, None),
@@ -64,7 +71,8 @@ def main(source, out):
                 name = note_name(freq)
             write(os.path.join(out, instrument, name + '.wav'), samples)
             manifest[instrument][name] = freq
-            print('{:14} {:22} {}'.format(instrument, name, '{:.2f} Hz'.format(freq) if freq else ''))
+            hz = '{:.2f} Hz'.format(freq) if freq else ''
+            print('{:14} {:22} {}'.format(instrument, name, hz))
     with open(os.path.join(out, 'samples.json'), 'w') as f:
         json.dump(manifest, f, indent=2, sort_keys=True)
 
@@ -73,8 +81,8 @@ def convert(path):
     """Mono 32 kHz floats, via afconvert's high-quality resampler."""
     with tempfile.TemporaryDirectory() as tmp:
         target = os.path.join(tmp, 'out.wav')
-        subprocess.run(['afconvert', '-f', 'WAVE', '-d', 'LEI16@{}'.format(RATE), '-c', '1', '--mix',
-                        path, target], check=True)
+        command = ['afconvert', '-f', 'WAVE', '-d', 'LEI16@{}'.format(RATE), '-c', '1', '--mix']
+        subprocess.run(command + [path, target], check=True)
         with wave.open(target) as w:
             pcm = array.array('h', w.readframes(w.getnframes()))
     if sys.byteorder == 'big':

@@ -155,6 +155,35 @@ def measure(view):
     return report
 
 
+def source_files(selector):
+    """A test for whether a path is a source file, decided by its extension."""
+    syntaxes = {}
+
+    def wanted(path):
+        ext = os.path.splitext(path)[1].lower()
+        if not ext or '.min.' in os.path.basename(path):
+            return False
+        if ext not in syntaxes:
+            syntax = sublime.find_syntax_for_file('file' + ext)
+            syntaxes[ext] = bool(syntax) and sublime.score_selector(syntax.scope, selector) > 0
+        return syntaxes[ext]
+    return wanted
+
+
+def measure_hidden(window, path, text):
+    """Score a file that isn't open by putting its text in a hidden output
+    panel, where Sublime's syntax definitions can read it."""
+    syntax = sublime.find_syntax_for_file(path, text.split('\n', 1)[0])
+    if syntax is None:
+        return None
+    panel = window.find_output_panel(PANEL) or window.create_output_panel(PANEL, True)
+    panel.settings().set('is_widget', True)
+    if panel.syntax() != syntax:
+        panel.assign_syntax(syntax)
+    panel.run_command('synesthesia_fill', {'text': text})
+    return measure(panel)
+
+
 def modified(path):
     try:
         return os.path.getmtime(path)
@@ -234,13 +263,19 @@ class Conductor:
         window = view.window()
         entry = self.watchers.get(window.id()) if window is not None and project_mode() else None
         if entry is not None:
-            if window.id() != self.window_id:
-                self.watch(window)
-            # Unsaved edits count toward the project; saved ones reach the
-            # watcher from disk.
-            if view.file_name() and not saved:
-                entry[0].update(view.file_name(), measure(view))
-            return
+            self.listen_in_project(view, window, entry[0], saved)
+        else:
+            self.listen_to_file(view, saved)
+
+    def listen_in_project(self, view, window, watcher, saved):
+        """Unsaved edits count toward the project; saved ones reach the
+        watcher from disk."""
+        if window.id() != self.window_id:
+            self.watch(window)
+        if view.file_name() and not saved:
+            watcher.update(view.file_name(), measure(view))
+
+    def listen_to_file(self, view, saved):
         self.window_id = None  # a file of its own, not a project
         report = measure(view)
         previous = self.scores.get(view.id())
@@ -266,20 +301,21 @@ class Conductor:
         the start and whenever what's being heard closes."""
         if not settings().get('enabled', True):
             return
+        windows = self.open_windows()
+        project = next((w for w in windows if w.folders()), None) if project_mode() else None
+        view = next((v for w in windows for v in [w.active_view()] + w.views() if wants(v)), None)
+        if project is not None:
+            self.watch(project)
+        elif view is not None:
+            self.listen(view)
+        else:
+            self.silence()
+
+    def open_windows(self):
+        """Open windows, the active one first, leaving out any closing."""
         active = sublime.active_window()
-        windows = [w for w in [active] + [w for w in sublime.windows() if w != active]
-                   if w is not None and w.id() not in self.closing]
-        if project_mode():
-            for window in windows:
-                if window.folders():
-                    self.watch(window)
-                    return
-        for window in windows:
-            for view in [window.active_view()] + window.views():
-                if wants(view):
-                    self.listen(view)
-                    return
-        self.silence()
+        windows = [active] + [w for w in sublime.windows() if w != active]
+        return [w for w in windows if w is not None and w.id() not in self.closing]
 
     def silence(self):
         """Fall silent gracefully: no new bars, but the last one rings out."""
@@ -330,28 +366,6 @@ class Conductor:
 
     def start_watcher(self, window, folders):
         s = settings()
-        syntaxes = {}
-
-        def wanted(path):
-            ext = os.path.splitext(path)[1].lower()
-            if not ext or '.min.' in os.path.basename(path):
-                return False
-            if ext not in syntaxes:
-                syntax = sublime.find_syntax_for_file('file' + ext)
-                syntaxes[ext] = bool(syntax) and sublime.score_selector(
-                    syntax.scope, s.get('selector', 'source')) > 0
-            return syntaxes[ext]
-
-        def measure_file(path, text):
-            syntax = sublime.find_syntax_for_file(path, text.split('\n', 1)[0])
-            if syntax is None:
-                return None
-            panel = window.find_output_panel(PANEL) or window.create_output_panel(PANEL, True)
-            panel.settings().set('is_widget', True)
-            if panel.syntax() != syntax:
-                panel.assign_syntax(syntax)
-            panel.run_command('synesthesia_fill', {'text': text})
-            return measure(panel)
 
         def progress(done, total):
             if done % 25 == 0 and window.id() == self.window_id:
@@ -367,7 +381,9 @@ class Conductor:
                 self.hear_project(reports, changes, initial, edited)
 
         watcher = Watcher(
-            folders, wanted, measure_file, changed, progress, report_failure,
+            folders, source_files(s.get('selector', 'source')),
+            lambda path, text: measure_hidden(window, path, text),
+            changed, progress, report_failure,
             interval=s.get('poll_interval', 0.5),
             exclude=s.get('project_exclude', []),
             max_files=s.get('max_project_files', 2000),
@@ -454,7 +470,8 @@ class Conductor:
 
         def job():
             try:
-                path = music.accent_file(library, stage, way, self.volume('volume', 0.5), cache_dir())
+                volume = self.volume('volume', 0.5)
+                path = music.accent_file(library, stage, way, volume, cache_dir())
                 wait = self.next_accent - time.monotonic()
                 if wait > 0:
                     time.sleep(wait)
@@ -469,7 +486,8 @@ class Conductor:
 
     def bar(self, sheet, cursor, stage):
         """Render a bar of `sheet`. Returns (seconds until the next bar, path)."""
-        return music.bar_file(library, sheet, cursor, stage, self.volume('ambient_volume', 0.3), cache_dir())
+        volume = self.volume('ambient_volume', 0.3)
+        return music.bar_file(library, sheet, cursor, stage, volume, cache_dir())
 
     def volume(self, key, default):
         return min(max(settings().get(key, default), 0.0), 1.0)
@@ -550,7 +568,8 @@ class Band(threading.Thread):
                 ready = None
                 self.stopped.wait(30)
                 continue
-            if self.woken.wait(max(0.0, started + seconds - time.monotonic())) and not self.stopped.is_set():
+            remaining = started + seconds - time.monotonic()
+            if self.woken.wait(max(0.0, remaining)) and not self.stopped.is_set():
                 self.stopped.wait(max(0.0, EARLY_BAR_GAP - (time.monotonic() - started)))
 
 
@@ -664,25 +683,30 @@ class SynesthesiaExplainCommand(sublime_plugin.TextCommand):
             sublime.status_message('Synesthesia only listens to views matching "{}"'.format(
                 settings().get('selector', 'source')))
             return
-        r = conductor.report if project else measure(self.view)
-        rows = [
-            ('Files that don\'t parse' if project else 'Doesn\'t parse', r.broken if project else
-             ('yes' if r.broken else 'no')),
-            ('Syntax errors', r.syntax_errors),
-            ('Unbalanced brackets', r.unbalanced_brackets),
-            ('Long functions', r.long_functions),
-            ('Functions with too many branches', r.complex_functions),
-            ('Lines nested too deep', r.deep_lines),
-            ('Duplicated lines', r.duplicate_lines),
-            ('Lines too long', r.long_lines),
-            ('Lines with trailing whitespace', r.trailing_whitespace),
-            ('Tabs and spaces mixed', 'yes' if r.mixed_indentation else 'no'),
-            ('TODO, FIXME, XXX, HACK', r.markers),
-        ]
-        content = '<body><b>{}</b>{} &nbsp;health {:.2f}, quality {:.2f}<br><br>{}</body>'.format(
-            html.escape(music.name(r.health)), ' (project)' if project else '', r.health, r.quality,
-            '<br>'.join('{}: {}'.format(html.escape(k), v) for k, v in rows))
-        self.view.show_popup(content, sublime.HIDE_ON_MOUSE_MOVE_AWAY, max_width=480)
+        report = conductor.report if project else measure(self.view)
+        self.view.show_popup(explanation(report, project), sublime.HIDE_ON_MOUSE_MOVE_AWAY,
+                             max_width=480)
+
+
+def explanation(r, project):
+    """What went into report `r`, as the popup's HTML."""
+    rows = [
+        ('Files that don\'t parse', r.broken) if project else
+        ('Doesn\'t parse', 'yes' if r.broken else 'no'),
+        ('Syntax errors', r.syntax_errors),
+        ('Unbalanced brackets', r.unbalanced_brackets),
+        ('Long functions', r.long_functions),
+        ('Functions with too many branches', r.complex_functions),
+        ('Lines nested too deep', r.deep_lines),
+        ('Duplicated lines', r.duplicate_lines),
+        ('Lines too long', r.long_lines),
+        ('Lines with trailing whitespace', r.trailing_whitespace),
+        ('Tabs and spaces mixed', 'yes' if r.mixed_indentation else 'no'),
+        ('TODO, FIXME, XXX, HACK', r.markers),
+    ]
+    return '<body><b>{}</b>{} &nbsp;health {:.2f}, quality {:.2f}<br><br>{}</body>'.format(
+        html.escape(music.name(r.health)), ' (project)' if project else '', r.health, r.quality,
+        '<br>'.join('{}: {}'.format(html.escape(k), v) for k, v in rows))
 
 
 class SynesthesiaDemoCommand(sublime_plugin.ApplicationCommand):

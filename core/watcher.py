@@ -111,36 +111,14 @@ class Watcher(threading.Thread):
         self._listed = time.monotonic()
 
     def _poll(self, initial=False):
-        changes = []
-        current = set(self._paths)
-        with self._lock:
-            for path in list(self.reports):
-                if path not in current:
-                    changes.append((path, self.reports.pop(path), None))
-                    self._stamps.pop(path, None)
-        due = []
-        for path in self._paths:
-            try:
-                stat = os.stat(path)
-            except OSError:
-                continue
-            stamp = (stat.st_mtime_ns, stat.st_size)
-            if self._stamps.get(path) != stamp:
-                due.append((path, stamp, stat.st_size))
+        changes = self._forget_vanished()
+        due = self._due()
         for done, (path, stamp, size) in enumerate(due):
             if self.stopped.is_set():
                 return
             if initial:
                 self.progress(done, len(due))
-            report = None
-            if size <= self.max_bytes:
-                try:
-                    with open(path, encoding='utf-8') as f:
-                        report = self.measure(path, f.read())
-                except (OSError, UnicodeDecodeError):
-                    pass
-                except Exception as e:  # one bad file shouldn't silence the rest
-                    self.failed(e)
+            report = self._read(path, size)
             with self._lock:
                 self._stamps[path] = stamp
                 old = self.reports.pop(path, None)
@@ -152,6 +130,41 @@ class Watcher(threading.Thread):
             reports = dict(self.reports)
             self.ready = True
         if initial:
-            self.changed(reports, [], initial=True)
+            self.changed(reports, [], initial=True)  # the first scan is a baseline, not news
         elif changes:
             self.changed(reports, changes, initial=False)
+
+    def _forget_vanished(self):
+        """Drop files that are gone, as changes to nothing."""
+        current = set(self._paths)
+        with self._lock:
+            gone = [path for path in self.reports if path not in current]
+            for path in gone:
+                self._stamps.pop(path, None)
+            return [(path, self.reports.pop(path), None) for path in gone]
+
+    def _due(self):
+        """(path, stamp, size) for files new or changed since last time."""
+        due = []
+        for path in self._paths:
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            stamp = (stat.st_mtime_ns, stat.st_size)
+            if self._stamps.get(path) != stamp:
+                due.append((path, stamp, stat.st_size))
+        return due
+
+    def _read(self, path, size):
+        """Measure the file, or None if it's too big or unreadable."""
+        if size > self.max_bytes:
+            return None
+        try:
+            with open(path, encoding='utf-8') as f:
+                return self.measure(path, f.read())
+        except (OSError, UnicodeDecodeError):
+            return None
+        except Exception as e:  # one bad file shouldn't silence the rest
+            self.failed(e)
+            return None

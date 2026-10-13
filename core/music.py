@@ -48,7 +48,8 @@ STAGES = (
           ('bass_sustain', (-12,), 5.0, 0.35), ('bells', 12), ('gong', 'gongscrape_pp'),
           (0.34, 0.85), 8, 0.04, 0.7, False, False),
     Stage(0.15, 'awful', (0, 1, 3, 4, 6, 7, 9, 10), 0.55, ('piano', 0), ('bells', 12),
-          ('cello_tremolo', (0, 6), 4.0, 0.4), ('timpani', 'Timpani1_Roll'), ('gong', 'gongscrape_pp'),
+          ('cello_tremolo', (0, 6), 4.0, 0.4), ('timpani', 'Timpani1_Roll'),
+          ('gong', 'gongscrape_pp'),
           (0.42, 0.87), 22, 0.07, 0.6, True, False),
     Stage(0.00, 'cursed', (0, 1, 6, 7, 11), 0.65, ('piano', 0), ('cymbal', 'susCymb1-bow-2'),
           ('bass_tremolo', (-12, -11), 4.0, 0.45), ('gong', 'gongHit_p'), ('gong', 'gongscrape_mf'),
@@ -89,8 +90,10 @@ def _spread(key, amount):
 def _sound(spec, time, velocity, pan=0.0, transpose=0, cents=0.0, seconds=3.0, key=0):
     instrument, where = spec
     if isinstance(where, str):  # unpitched: vary the speed a little instead
-        return Event(time, instrument, None, where, 2 ** (_spread(key, 2) / 12), velocity, pan, seconds)
-    return Event(time, instrument, pitch(where + transpose, cents), None, 1.0, velocity, pan, seconds)
+        ratio = 2 ** (_spread(key, 2) / 12)
+        return Event(time, instrument, None, where, ratio, velocity, pan, seconds)
+    freq = pitch(where + transpose, cents)
+    return Event(time, instrument, freq, None, 1.0, velocity, pan, seconds)
 
 
 def arrange(sheet, cursor, index):
@@ -102,27 +105,34 @@ def arrange(sheet, cursor, index):
     instrument, roots, length, level = s.bass
     events = [_sound((instrument, roots[first % len(roots)]), 0.0, level, seconds=length)]
     for k, line in enumerate(lines):
-        if line is None or line.kind == 'blank':
-            continue  # a rest
-        if (line.key % 1000) / 1000 >= s.density:
-            continue  # sparser as things get worse
-        time = max(0.0, k * s.step + _spread(line.key, s.jitter))
-        velocity = 0.35 + 0.45 * min(line.length, 80) / 80
-        pan = _spread(line.key >> 3, 0.6)
-        cents = _spread(line.key >> 5, s.detune)
-        note = degree(s.scale, min(line.depth * 2 + line.key % 3, len(s.scale) * 5 // 2))
-        spec = s.comment if line.kind == 'comment' else s.melody
-        events.append(_sound(spec, time, velocity, pan, note, cents, 3.0, line.key))
-        if s.cluster:  # a semitone grinding against the melody
-            events.append(_sound(spec, time, velocity * 0.7, -pan, note + 1, -cents, 3.0, line.key))
-        if line.kind == 'function':
-            events.append(_sound(s.function, time, 0.6, 0.0, 0, cents, 4.0, line.key))
-        if line.broken:
-            events.append(_sound(s.broken, time, 0.7, -pan, 1, cents, 3.0, line.key))
-            events.append(_sound(s.broken, time + 0.03, 0.6, pan, 6, -cents, 3.0, line.key >> 1))
+        # Blank lines are rests, and notes thin out as things get worse.
+        if line is not None and line.kind != 'blank' and (line.key % 1000) / 1000 < s.density:
+            events.extend(_line_events(s, k, line))
     if s.saw:
         events.extend(_saw(s, lines))
     return events, STEPS * s.step
+
+
+def _line_events(s, k, line):
+    """What line `k` of a bar plays in stage `s`: a note on the melody
+    instrument, or the comment instrument for comments; a semitone grinding
+    against it in clustered stages; the function sound where a function
+    starts; and a dissonant pair where the line is broken."""
+    key = line.key
+    time = max(0.0, k * s.step + _spread(key, s.jitter))
+    velocity = 0.35 + 0.45 * min(line.length, 80) / 80
+    pan, cents = _spread(key >> 3, 0.6), _spread(key >> 5, s.detune)
+    note = degree(s.scale, min(line.depth * 2 + key % 3, len(s.scale) * 5 // 2))
+    spec = s.comment if line.kind == 'comment' else s.melody
+    events = [_sound(spec, time, velocity, pan, note, cents, 3.0, key)]
+    if s.cluster:
+        events.append(_sound(spec, time, velocity * 0.7, -pan, note + 1, -cents, 3.0, key))
+    if line.kind == 'function':
+        events.append(_sound(s.function, time, 0.6, 0.0, 0, cents, 4.0, key))
+    if line.broken:
+        events.append(_sound(s.broken, time, 0.7, -pan, 1, cents, 3.0, key))
+        events.append(_sound(s.broken, time + 0.03, 0.6, pan, 6, -cents, 3.0, key >> 1))
+    return events
 
 
 def _saw(s, lines):
@@ -138,8 +148,8 @@ def _saw(s, lines):
     start, last = points[0][0], points[-1][1]
     points.append((STEPS * s.step - 0.4, last * 2 ** (-7 / 12)))
     shape = tuple((round(t - start, 3), round(f, 2)) for t, f in points)
-    return [Event(start, 'saw', None, shape, 1.0, 0.45, _spread(lines[0].key if lines[0] else 0, 0.5),
-                  STEPS * s.step - start + 1.2)]
+    pan = _spread(lines[0].key if lines[0] else 0, 0.5)
+    return [Event(start, 'saw', None, shape, 1.0, 0.45, pan, STEPS * s.step - start + 1.2)]
 
 
 def _lines(sheet, cursor):
@@ -213,9 +223,11 @@ def mix(library, events, tail):
         if e.instrument == 'saw':
             samples = singing_saw(e.sample, e.seconds)
         else:
-            samples = library.note(e.instrument, freq=e.freq, name=e.sample, ratio=e.ratio, seconds=e.seconds)
+            samples = library.note(e.instrument, freq=e.freq, name=e.sample, ratio=e.ratio,
+                                   seconds=e.seconds)
         notes.append((int(e.time * RATE), samples, e))
-    length = max((start + len(samples) for start, samples, _ in notes), default=0) + int(tail * RATE)
+    end = max((start + len(samples) for start, samples, _ in notes), default=0)
+    length = end + int(tail * RATE)
     left, right = [0.0] * length, [0.0] * length
     for start, samples, e in notes:
         angle = (e.pan + 1) * math.pi / 4  # constant-power panning
@@ -285,7 +297,8 @@ def bar_file(library, sheet, cursor, index, volume, directory):
 
 
 def accent_file(library, index, direction, volume, directory):
-    path = os.path.join(directory, 'accent-{}-{}-{:03d}.wav'.format(index, direction, round(volume * 100)))
+    name = 'accent-{}-{}-{:03d}.wav'.format(index, direction, round(volume * 100))
+    path = os.path.join(directory, name)
     if not os.path.exists(path):
         os.makedirs(directory, exist_ok=True)
         wet, size = STAGES[index].room

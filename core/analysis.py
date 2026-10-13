@@ -150,6 +150,51 @@ def health(quality, bugs):
     return quality / (1 + 0.8 * bugs)
 
 
+def nesting(code_lines, extents, tab_size, limit):
+    """(lines nested deeper than `limit`, how many levels too deep they are
+    in all, whether tabs and spaces are mixed). Nesting counts from the
+    function a line is in, so the module and class wrapped around it don't
+    make ordinary code look deep."""
+    base = [0] * len(code_lines)
+    for start, end in sorted(extents):  # inner functions come later and win
+        level = indentation(code_lines[start], tab_size) + tab_size
+        for i in range(start + 1, end):
+            base[i] = level
+    deep = excess = 0
+    tabs = spaces = False
+    for line, floor in zip(code_lines, base):
+        stripped = line.lstrip()
+        if not stripped:
+            continue
+        indent = line[:len(line) - len(stripped)]
+        tabs = tabs or '\t' in indent
+        spaces = spaces or ('\t' not in indent and len(indent) >= tab_size)
+        width = len(indent.expandtabs(tab_size))
+        # Lines aligned to an opening bracket rarely land on a tab stop, so
+        # only count true indentation levels as nesting.
+        depth = (width - floor) // tab_size
+        if width % tab_size == 0 and depth > limit:
+            deep += 1
+            excess += depth - limit
+    return deep, excess, tabs and spaces
+
+
+def function_smells(text_lines, extents, branches, limits):
+    """(long functions, their lines past the limit, functions with too many
+    branches, their branches past the limit)."""
+    long_functions = function_excess = complex_functions = branch_excess = 0
+    for start, end in extents:
+        length = sum(1 for line in text_lines[start:end] if line.strip())
+        count = sum(1 for b in branches if start <= b < end)
+        if length > limits.function_lines:
+            long_functions += 1
+            function_excess += length - limits.function_lines
+        if count > limits.branches:
+            complex_functions += 1
+            branch_excess += count - limits.branches
+    return long_functions, function_excess, complex_functions, branch_excess
+
+
 def examine(text, code=None, comments='', syntax_errors=0, functions=(),
             branches=(), tab_size=4, limits=None, check_brackets=True, broken=False):
     """Score `text`.
@@ -168,73 +213,25 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
     text_lines = text.split('\n')
     code_lines = code.split('\n')
 
-    lines = sum(1 for line in text_lines if line.strip())
-    long_lines = sum(1 for line in text_lines if len(line.expandtabs(tab_size)) > limits.line_length)
-    trailing = sum(1 for line in text_lines if line != line.rstrip())
-
     extents = function_extents(code_lines, functions, tab_size)
-    # Nesting counts from the function a line is in, so the module and class
-    # wrapped around it don't make ordinary code look deep.
-    base = [0] * len(code_lines)
-    for start, end in sorted(extents):  # inner functions come later and win
-        level = indentation(code_lines[start], tab_size) + tab_size
-        for i in range(start + 1, end):
-            base[i] = level
-
-    nesting_excess = deep_lines = 0
-    tab_indented = space_indented = False
-    for i, line in enumerate(code_lines):
-        stripped = line.lstrip()
-        if not stripped:
-            continue
-        indent = line[:len(line) - len(stripped)]
-        if '\t' in indent:
-            tab_indented = True
-        elif len(indent) >= tab_size:
-            space_indented = True
-        width = len(indent.expandtabs(tab_size))
-        # Lines aligned to an opening bracket rarely land on a tab stop, so
-        # only count true indentation levels as nesting.
-        depth = (width - base[i]) // tab_size
-        if width % tab_size == 0 and depth > limits.nesting:
-            deep_lines += 1
-            nesting_excess += depth - limits.nesting
-
-    function_excess = branch_excess = long_functions = complex_functions = 0
-    branch_lines = sorted(branches)
-    for start, end in extents:
-        length = sum(1 for line in text_lines[start:end] if line.strip())
-        if length > limits.function_lines:
-            long_functions += 1
-            function_excess += length - limits.function_lines
-        count = sum(1 for b in branch_lines if start <= b < end)
-        if count > limits.branches:
-            complex_functions += 1
-            branch_excess += count - limits.branches
-
-    duplicates = duplicate_lines(text_lines)
-    unbalanced = unbalanced_brackets(code) if check_brackets else 0
-    markers = len(MARKER_RE.findall(comments))
-    mixed = tab_indented and space_indented
-
-    q = quality(lines, function_excess, branch_excess, nesting_excess, duplicates,
-                long_lines, trailing, mixed, markers)
-    report = Report(
-        health=1.0,
-        quality=q,
-        lines=lines,
+    counts = dict(
+        lines=sum(1 for line in text_lines if line.strip()),
+        long_lines=sum(1 for line in text_lines if len(line.expandtabs(tab_size)) > limits.line_length),
+        trailing_whitespace=sum(1 for line in text_lines if line != line.rstrip()),
+        duplicate_lines=duplicate_lines(text_lines),
+        unbalanced_brackets=unbalanced_brackets(code) if check_brackets else 0,
+        markers=len(MARKER_RE.findall(comments)),
         syntax_errors=syntax_errors,
-        unbalanced_brackets=unbalanced,
-        long_functions=long_functions,
-        complex_functions=complex_functions,
-        deep_lines=deep_lines,
-        duplicate_lines=duplicates,
-        long_lines=long_lines,
-        trailing_whitespace=trailing,
-        mixed_indentation=mixed,
-        markers=markers,
         broken=int(broken),
     )
+    counts['deep_lines'], nesting_excess, counts['mixed_indentation'] = nesting(
+        code_lines, extents, tab_size, limits.nesting)
+    counts['long_functions'], function_excess, counts['complex_functions'], branch_excess = \
+        function_smells(text_lines, extents, branches, limits)
+    q = quality(counts['lines'], function_excess, branch_excess, nesting_excess,
+                counts['duplicate_lines'], counts['long_lines'], counts['trailing_whitespace'],
+                counts['mixed_indentation'], counts['markers'])
+    report = Report(health=1.0, quality=q, **counts)
     report.health = health(q, report.bugs)
     return report
 
