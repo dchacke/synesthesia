@@ -433,6 +433,12 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(self.accents, [])
         self.assertEqual(self.conductor.report.health, 1.0)
 
+    def test_play_now_with_nothing_to_play(self):
+        blank = self.sublime.window_list[0].open(View('', scope='text.plain'))
+        self.plugin.SynesthetePlayCommand(blank).run(None)
+        self.assertEqual(self.phrases, [])
+        self.assertEqual(self.conductor.watchers, {})
+
     def test_toggle(self):
         command = self.plugin.SynestheteToggleCommand()
         command.run()
@@ -548,6 +554,33 @@ class ProjectTest(unittest.TestCase):
         self.conductor.let_go(other, closing=True)
         self.assertIsNone(self.conductor.report)
         self.assertEqual(self.conductor.watchers, {})
+
+    def test_file_mode_plays_the_project_while_no_file_is_open(self):
+        SUBLIME.settings['listen_to'] = 'file'
+        self.conductor.stop_watching()
+        self.conductor.silence()
+        self.conductor.retarget()
+        self.wait_for(lambda: self.conductor.playing == self.path)
+        view = self.window.open(View('x = 1\n'))
+        self.conductor.listen(view)
+        self.assertEqual(self.conductor.playing, view.id())
+        self.assertEqual(self.conductor.watchers, {})  # done with the project
+        self.window.close(view)
+        self.conductor.forget(view)
+        self.wait_for(lambda: self.conductor.playing == self.path)
+
+    def test_play_now_without_a_file_plays_the_project(self):
+        SUBLIME.settings['listen_to'] = 'file'
+        self.conductor.stop_watching()
+        self.conductor.silence()
+        blank = self.window.open(View('', scope='text.plain'))
+        play = PLUGIN.SynesthetePlayCommand(blank)
+        play.run(None)
+        self.wait_for(lambda: self.conductor.report is not None)
+        phrases = []
+        self.conductor.renderer = mock.Mock(submit=lambda fn, *args: phrases.append(args))
+        play.run(None)
+        self.assertEqual(len(phrases), 1)
 
     def test_closing_the_project_moves_on_to_open_files(self):
         self.wait_for(lambda: self.conductor.playing == self.path)

@@ -3,7 +3,8 @@
     "enabled": true,
 
     // What to listen to:
-    // "file":    the file you are looking at, as you type.
+    // "file":    the file you are looking at, as you type, or the window's
+    //            project while no code file is open.
     // "project": every source file in the window's folders, as they change
     //            on disk. Made for hearing a coding agent work without
     //            watching any particular file.

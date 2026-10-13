@@ -261,9 +261,7 @@ class Conductor:
             self.silence()
             return
         self.warmer.submit(self.warm_up)
-        if not project_mode():
-            self.stop_watching()
-        sublime.set_timeout_async(self.retarget)
+        sublime.set_timeout_async(self.retarget)  # which also stops projects no longer heard
 
     def shutdown(self):
         self.stop_watching()
@@ -300,6 +298,8 @@ class Conductor:
             watcher.update(view.file_name(), measure(view))
 
     def listen_to_file(self, view, saved):
+        if not project_mode():
+            self.stop_watching()  # a project heard while no file was open
         self.window_id = None  # a file of its own, not a project
         report = measure(view)
         previous = self.scores.get(view.id())
@@ -328,14 +328,15 @@ class Conductor:
 
     def retarget(self):
         """Carry on with whatever is open now: the active window's project
-        in project mode, else an open code file, else fall silent. Used at
-        the start and whenever what's being heard closes."""
+        in project mode, else an open code file, else (in file mode too) a
+        window's project, else fall silent. Used at the start and whenever
+        what's being heard closes."""
         if not settings().get('enabled', True):
             return
         windows = self.open_windows()
-        project = next((w for w in windows if w.folders()), None) if project_mode() else None
+        project = next((w for w in windows if w.folders()), None)
         view = next((v for w in windows for v in [w.active_view()] + w.views() if wants(v)), None)
-        if project is not None:
+        if project is not None and (project_mode() or view is None):
             self.watch(project)
         elif view is not None:
             self.listen(view)
@@ -700,8 +701,10 @@ class SynestheteListener(sublime_plugin.EventListener):
             conductor.watch(window)  # follows you between windows
             if conductor.report is not None and settings().get('show_status', True):
                 view.set_status(STATUS_KEY, describe(conductor.report, ' · project'))
-        else:
+        elif wants(view):
             conductor.listen(view)
+        elif conductor.report is None:
+            conductor.retarget()  # nothing heard yet, but maybe this window's project
 
     def on_post_save_async(self, view):
         if conductor:
@@ -772,14 +775,19 @@ class SynesthetePlayCommand(sublime_plugin.TextCommand):
     """Play a bar of the current code right now."""
 
     def run(self, edit):
-        report = conductor.report if project_mode() else None
-        if report is None:
-            if not wants(self.view):
-                sublime.status_message('Synesthete only listens to views matching "{}"'.format(
-                    settings().get('selector', 'source')))
-                return
+        code = wants(self.view)
+        report = conductor.report if project_mode() or not code else None
+        if report is None and code:
             report = measure(self.view)
             conductor.follow(self.view.id(), report.sheet, None)
+        if report is None:
+            window = self.view.window()
+            if settings().get('enabled', True) and window is not None and window.folders():
+                conductor.watch(window)  # plays once the project is read
+                sublime.status_message('♪ listening to the project…')
+            else:
+                sublime.status_message('Synesthete: open a code file to hear it')
+            return
         sublime.status_message(describe(report))
         conductor.renderer.submit(conductor.phrase, music.stage(report.health))
 
@@ -788,12 +796,14 @@ class SynestheteExplainCommand(sublime_plugin.TextCommand):
     """Show what went into the score."""
 
     def run(self, edit):
-        project = project_mode() and conductor.report is not None
-        if not project and not wants(self.view):
-            sublime.status_message('Synesthete only listens to views matching "{}"'.format(
-                settings().get('selector', 'source')))
+        code = wants(self.view)
+        if conductor.report is not None and (project_mode() or not code):
+            report, project = conductor.report, conductor.watcher is not None
+        elif code:
+            report, project = measure(self.view), False
+        else:
+            sublime.status_message('Synesthete: open a code file to hear it')
             return
-        report = conductor.report if project else measure(self.view)
         self.view.show_popup(explanation(report, project), sublime.HIDE_ON_MOUSE_MOVE_AWAY,
                              max_width=480)
 

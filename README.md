@@ -71,7 +71,8 @@ went into the current score, and the status bar shows the stage.
 
 ## Listening to a file or a project
 
-- **file** (default): the file you are looking at, as you type.
+- **file** (default): the file you are looking at, as you type. While no
+  code file is open, the window's project plays instead.
 - **project**: every source file in the window's folders, as it changes on
   disk. Made for coding agents: you don't need to look at any file to hear
   the agent work. The music walks through every file in the project, one
