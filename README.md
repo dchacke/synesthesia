@@ -2,28 +2,45 @@
 
 Hear the state of your code in Sublime Text.
 
-Beautiful code plays a harp over a singing bowl. As it gets worse the music
-moves to marimba, then vibraphone in a minor key, then church bells and dead,
-muted strings, then detuned bells and gongs, until cursed code is all gongs,
-creaks and bowed metal screeching like a horror film. Changes also get
-a short accent: rising if things got better, falling if they got worse.
+Synesthesia plays your code. The music walks through it line by line on
+recorded instruments, so every file has its own melody, and when the code
+changes the music jumps to where it changed. How good the code is decides
+how the music sounds: beautiful code is a harp over a cello section; worse
+code moves to marimba, then piano in a minor key, then tubular bells and a
+droning contrabass, until cursed code is gongs, bowed cymbals and grinding
+clusters. Changes also get a short accent: rising if things got better,
+falling if they got worse.
 
 ## Stages
 
-| Health    | Stage     | Sound                                                    |
-| --------- | --------- | -------------------------------------------------------- |
-| 0.90–1.00 | beautiful | harp arpeggios in major with an added ninth, glass, bowl |
-| 0.75–0.90 | good      | harp arpeggios in major                                  |
-| 0.60–0.75 | decent    | marimba in open fifths, plain and dry                    |
-| 0.45–0.60 | meh       | vibraphone in minor, slower, descending                  |
-| 0.30–0.45 | bad       | a church bell, hesitant muted strings, a beating drone   |
-| 0.15–0.30 | awful     | detuned bells, stumbling strings, a gong, bowed metal    |
-| 0.00–0.15 | cursed    | screeching bowed metal, a tritone of gongs, creaks       |
+| Health    | Stage     | Sound                                                       |
+| --------- | --------- | ----------------------------------------------------------- |
+| 0.90–1.00 | beautiful | harp in major pentatonic, glockenspiel, cello section       |
+| 0.75–0.90 | good      | harp in major, pizzicato bass                               |
+| 0.60–0.75 | decent    | marimba in open fourths and fifths, pizzicato bass          |
+| 0.45–0.60 | meh       | piano in minor, cello section                               |
+| 0.30–0.45 | bad       | sparse piano in Phrygian, tubular bells, sustained bass     |
+| 0.15–0.30 | awful     | detuned piano clusters, tubular bells, cello tremolo, timpani |
+| 0.00–0.15 | cursed    | clusters, bowed cymbal, gongs, contrabass tremolo           |
 
-As things get worse the tempo slows, the register drops and the room grows
-from a small hall into a cavern. All instruments are physically modelled in
-pure Python: Karplus-Strong strings, and modal synthesis for everything
-struck or bowed.
+As things get worse the tempo slows, the timing loosens, notes drop out,
+the tuning drifts and the room grows from a small hall into a cavern.
+
+## How the code becomes music
+
+Each line is one step. Its indentation sets how high it sits in the
+stage's scale, so deeper code climbs; a hash of its text nudges the note,
+so different lines make different melodies while identical lines sound
+identical (duplicated code sounds repetitive); and its length sets how hard
+it's played. Blank lines are rests. Comments ring on a second instrument,
+lines that start functions bring in the bass, and lines the syntax
+definition flags as broken sound a dissonant cluster as the music passes
+them. Eight lines make a bar; each bar is rendered once and cached, so code
+that hasn't changed costs nothing to play again.
+
+The instruments are real recordings from
+[VSCO 2 Community Edition](https://versilian-studios.com/vsco-community/),
+which is public domain; see [samples/README.md](samples/README.md).
 
 ## How code is judged
 
@@ -57,19 +74,18 @@ went into the current score, and the status bar shows the stage.
 - **project**: every source file in the window's folders, as it changes on
   disk. Made for coding agents: you don't need to look at any file to hear
   the agent work. Each file it writes plays an accent in that file's stage,
-  rising or falling with the change, and the ambient music follows the whole
-  project: quality averaged by file size, with every bug in every file
-  counted. Synesthesia checks for changes twice a second and skips whatever
-  git ignores.
+  rising or falling with the change, and the music moves to that file,
+  starting where it changed. The stage follows the whole project: quality
+  averaged by file size, with every bug in every file counted. Synesthesia
+  checks for changes twice a second and skips whatever git ignores.
 
 Switch with `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`.
 
 ## Modes
 
-- **ambient** (default): a continuous stream of phrases in the current
-  stage, plus the accents. When the stage changes, the next phrase starts
-  right away.
-- **chime**: only the accents, and a phrase when the stage changes.
+- **ambient** (default): the code played continuously, plus the accents.
+  When the stage changes, the next bar starts right away.
+- **chime**: only the accents, and a bar when the stage changes.
 
 ## Install
 
@@ -81,7 +97,7 @@ ln -s "$PWD" "$HOME/Library/Application Support/Sublime Text/Packages/Synesthesi
 ```
 
 Then run `Synesthesia: Play All Stages` from the command palette to hear the
-whole range. Sounds are rendered once, in the background, and cached.
+current file in every stage.
 
 Requires Sublime Text 4. Sound is played with `afplay` on macOS and `paplay`,
 `pw-play`, or `aplay` on Linux. On Windows it uses `winsound`, which cannot
@@ -92,7 +108,7 @@ overlap sounds, so each sound cuts off the one before.
 - `Synesthesia: Toggle` (<kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>)
 - `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`
 - `Synesthesia: Ambient Mode` and `Synesthesia: Chime Mode`
-- `Synesthesia: Play Now` plays a phrase for the current score
+- `Synesthesia: Play Now` plays a bar of the current code
 - `Synesthesia: Explain Score`
 - `Synesthesia: Play All Stages`
 - `Preferences: Synesthesia Settings`

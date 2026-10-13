@@ -12,7 +12,7 @@ Nothing in here imports sublime, so it runs under any Python.
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 CLOSERS = {')': '(', ']': '[', '}': '{'}
 BRACKET_RE = re.compile(r'[()\[\]{}]')
@@ -49,6 +49,7 @@ class Report:
     markers: int = 0
     broken: int = 0  # files the language's own parser rejected
     total_bugs: int = None  # set when combining files
+    sheet: list = field(default=None, repr=False, compare=False)  # the code as music; see score.py
 
     @property
     def bugs(self):

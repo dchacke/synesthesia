@@ -1,14 +1,14 @@
 """Synesthesia: hear the state of your code.
 
 Scores the current file, or every source file in the open folders, from
-beautiful to cursed, and plays that score: an ambient stream of phrases in
-the current stage's harmony and instruments, plus a short accent whenever
-something changes, rising if it got better and falling if it got worse.
+beautiful to cursed, and plays it on recorded instruments. The code is the
+score: the music walks through it line by line, in the stage's scale,
+instruments and tempo, and jumps to wherever the code just changed. Changes
+also get a short accent, rising if things got better and falling if worse.
 """
 
 import html
 import os
-import random
 import shutil
 import sys
 import threading
@@ -23,20 +23,22 @@ import sublime_plugin
 for _module in [m for m in sys.modules if m.startswith(__package__ + '.core')]:
     del sys.modules[_module]
 
-from .core import analysis, checker, music  # noqa: E402
+from .core import analysis, checker, music, score  # noqa: E402
 from .core.player import Player  # noqa: E402
+from .core.sampler import Library  # noqa: E402
 from .core.watcher import Watcher  # noqa: E402
 
 SETTINGS = 'Synesthesia.sublime-settings'
 STATUS_KEY = 'synesthesia'
 PANEL = 'synesthesia'
-SOUND_VERSION = 2  # bump when the music changes, so stale renders are dropped
+SOUND_VERSION = 3  # bump when the music changes, so stale renders are dropped
 ACCENT_GAP = 0.12  # seconds between accents, so a burst of changes cascades
 EARLY_BAR_GAP = 0.8  # when the stage changes, wait at least this long after the last bar
 BRANCHES = ('keyword.control.conditional, keyword.control.loop, '
             'keyword.control.exception.catch, keyword.operator.logical')
 
 conductor = None
+library = None  # the recorded instruments
 search_path = None  # where to find syntax checkers; see checker.login_path
 unrunnable = set()  # checkers that failed to start, so we only say so once
 
@@ -54,7 +56,8 @@ def cache_dir():
 
 
 def plugin_loaded():
-    global conductor
+    global conductor, library
+    library = Library(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'samples'))
 
     def find_checkers():
         global search_path
@@ -128,14 +131,18 @@ def measure(view):
         return [view.rowcol(r.begin())[0] for r in view.find_by_selector(selector)]
 
     ignored = view.find_by_selector(s.get('ignore_selector', 'string, comment'))
-    return analysis.examine(
+    code = analysis.mask(text, [(r.begin(), r.end()) for r in ignored])
+    errors = lines(s.get('error_selector', 'invalid - invalid.deprecated'))
+    functions = lines(s.get('function_selector', 'entity.name.function'))
+    tab_size = view.settings().get('tab_size', 4)
+    report = analysis.examine(
         text,
-        code=analysis.mask(text, [(r.begin(), r.end()) for r in ignored]),
+        code=code,
         comments='\n'.join(view.substr(r) for r in view.find_by_selector('comment')),
-        syntax_errors=len(view.find_by_selector(s.get('error_selector', 'invalid - invalid.deprecated'))),
-        functions=lines(s.get('function_selector', 'entity.name.function')),
+        syntax_errors=len(errors),
+        functions=functions,
         branches=lines(s.get('branch_selector', BRANCHES)),
-        tab_size=view.settings().get('tab_size', 4),
+        tab_size=tab_size,
         limits=analysis.Limits(
             line_length=line_limit(view),
             nesting=s.get('max_nesting', 4),
@@ -144,6 +151,15 @@ def measure(view):
         check_brackets=s.get('check_brackets', True),
         broken=parses(view, text) is False,
     )
+    report.sheet = score.read(text, code, functions, errors, tab_size)
+    return report
+
+
+def modified(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
 
 
 def describe(report, scope=''):
@@ -163,6 +179,9 @@ class Conductor:
 
     def __init__(self):
         self.report = None  # what the music describes right now
+        self.sheet = None  # the code the music plays; see score.py
+        self.focus = None  # a line the band should jump to, where the code just changed
+        self.playing = None  # the view id or path the sheet comes from
         self.scores = {}  # view id -> last report, for telling which way a file moved
         self.band = None
         self.watcher = None
@@ -228,6 +247,7 @@ class Conductor:
             view.set_status(STATUS_KEY, describe(report))
         if previous is not None and (saved or abs(report.health - previous.health) >= 0.02):
             self.accent(report.health, direction(previous.health, report.health))
+        self.follow(view.id(), report.sheet, previous.sheet if previous else None)
         self.hear(report)
 
     def forget(self, view):
@@ -300,16 +320,31 @@ class Conductor:
         if report is None:
             self.status('♪ no source files in this project')
             return
-        if not initial:
-            for path, old, new in changes:
-                if new is None:
-                    continue  # a deleted file has nothing to say
-                if edited and old is not None and abs(new.health - old.health) < 0.02:
-                    continue
-                self.accent(new.health, direction(old.health, new.health) if old else 'same')
+        for path, old, new in changes:
+            if new is None:
+                continue  # a deleted file has nothing to say
+            self.follow(path, new.sheet, old.sheet if old else None)
+            if edited and old is not None and abs(new.health - old.health) < 0.02:
+                continue
+            self.accent(new.health, direction(old.health, new.health) if old else 'same')
+        if self.playing not in reports:  # at first, or when its file is gone
+            latest = max(reports, key=modified)  # the file worked on last
+            self.follow(latest, reports[latest].sheet, None)
         self.hear(report, ' · project')
 
     # Sound
+
+    def follow(self, source, sheet, old_sheet):
+        """Play `sheet` from now on, starting where it differs from
+        `old_sheet`, or from the top if it comes from somewhere new."""
+        if source != self.playing:
+            self.focus = 0
+        elif old_sheet is not None:
+            changed = score.first_difference(old_sheet, sheet)
+            if changed is not None:
+                self.focus = changed
+        self.playing = source
+        self.sheet = sheet
 
     def hear(self, report, scope=''):
         previous, self.report = self.report, report
@@ -324,9 +359,9 @@ class Conductor:
             self.renderer.submit(self.phrase, stage)
 
     def phrase(self, stage):
-        """In chime mode, play a whole bar when the stage changes."""
+        """In chime mode, play a bar when the stage changes."""
         try:
-            _, path = self.render('bar', stage, random.randrange(music.VARIANTS))
+            _, path = self.bar(self.sheet, self.focus or 0, stage)
             self.accent_player.play(path)
         except Exception as e:
             report_failure(e)
@@ -339,7 +374,7 @@ class Conductor:
 
         def job():
             try:
-                _, path = self.render(way, stage)
+                path = music.accent_file(library, stage, way, self.volume('volume', 0.5), cache_dir())
                 wait = self.next_accent - time.monotonic()
                 if wait > 0:
                     time.sleep(wait)
@@ -352,24 +387,21 @@ class Conductor:
 
         self.accents.submit(job)
 
-    def render(self, kind, stage, variant=0):
-        s = settings()
-        volume = s.get('ambient_volume', 0.3) if kind == 'bar' else s.get('volume', 0.5)
-        return music.render_file(kind, stage, variant, min(max(volume, 0.0), 1.0), cache_dir())
+    def bar(self, sheet, cursor, stage):
+        """Render a bar of `sheet`. Returns (seconds until the next bar, path)."""
+        return music.bar_file(library, sheet, cursor, stage, self.volume('ambient_volume', 0.3), cache_dir())
+
+    def volume(self, key, default):
+        return min(max(settings().get(key, default), 0.0), 1.0)
 
     def warm_up(self):
-        """Render everything ahead of time, nearest the current stage first,
+        """Render the accents ahead of time, nearest the current stage first,
         so changes are heard without delay."""
         current = music.stage(self.report.health) if self.report else 0
-        order = sorted(range(len(music.STAGES)), key=lambda i: abs(i - current))
         try:
-            for stage in order:
-                for kind in ('up', 'down', 'same'):
-                    self.render(kind, stage)
-                self.render('bar', stage, 0)
-            for stage in order:
-                for variant in range(1, music.VARIANTS):
-                    self.render('bar', stage, variant)
+            for stage in sorted(range(len(music.STAGES)), key=lambda i: abs(i - current)):
+                for way in ('up', 'down', 'same'):
+                    music.accent_file(library, stage, way, self.volume('volume', 0.5), cache_dir())
         except Exception as e:
             report_failure(e)
 
@@ -380,8 +412,10 @@ class Conductor:
 
 
 class Band(threading.Thread):
-    """The ambient stream: one bar after another in the current stage. When
-    the stage changes, the next bar starts right away."""
+    """The ambient stream: walks through the code a bar at a time in the
+    current stage, rendering each bar while the one before it plays. When the
+    stage changes the next bar starts right away; when the code changes the
+    band moves to where it changed."""
 
     def __init__(self, conductor):
         super().__init__(name='Synesthesia band', daemon=True)
@@ -389,6 +423,7 @@ class Band(threading.Thread):
         self.player = Player()
         self.stopped = threading.Event()
         self.woken = threading.Event()
+        self.cursor = 0
 
     def stop(self):
         self.stopped.set()
@@ -398,29 +433,44 @@ class Band(threading.Thread):
     def hurry(self):
         self.woken.set()
 
+    def next_bar(self):
+        """What to play next: (sheet, cursor, stage), or None for silence."""
+        c = self.conductor
+        if c.report is None:
+            return None
+        if c.focus is not None:
+            self.cursor, c.focus = max(0, c.focus - 2), None  # lead in to the change
+        sheet = c.sheet or []
+        self.cursor %= max(len(sheet), 1)
+        return sheet, self.cursor, music.stage(c.report.health)
+
     def run(self):
-        variant = 0
+        ready = None  # (sheet, cursor, stage), seconds, path
         while not self.stopped.is_set():
             self.woken.clear()
-            report = self.conductor.report
-            if report is None:
+            plan = self.next_bar()
+            if plan is None:
                 self.woken.wait(0.5)
                 continue
-            stage = music.stage(report.health)
             try:
-                length, path = self.conductor.render('bar', stage, variant)
-                if music.stage(self.conductor.report.health) != stage:
+                if ready is None or ready[0] != plan:
+                    ready = (plan,) + self.conductor.bar(*plan)
+                if self.next_bar() != plan:
+                    ready = None
                     continue  # the code changed while the bar was rendering
-                self.woken.clear()
-                self.player.play(path)
+                self.player.play(ready[2])
+                started, seconds = time.monotonic(), ready[1]
+                sheet, cursor, stage = plan
+                self.cursor = (cursor + music.STEPS) % max(len(sheet), 1)
+                upcoming = self.next_bar()
+                ready = (upcoming,) + self.conductor.bar(*upcoming)
             except Exception as e:
                 report_failure(e)
+                ready = None
                 self.stopped.wait(30)
                 continue
-            started = time.monotonic()
-            if self.woken.wait(length) and not self.stopped.is_set():
+            if self.woken.wait(max(0.0, started + seconds - time.monotonic())) and not self.stopped.is_set():
                 self.stopped.wait(max(0.0, EARLY_BAR_GAP - (time.monotonic() - started)))
-            variant = random.choice([v for v in range(music.VARIANTS) if v != variant])
 
 
 def report_failure(error):
@@ -497,7 +547,7 @@ class SynesthesiaSetCommand(sublime_plugin.ApplicationCommand):
 
 
 class SynesthesiaPlayCommand(sublime_plugin.TextCommand):
-    """Play a bar for the current score right now."""
+    """Play a bar of the current code right now."""
 
     def run(self, edit):
         report = conductor.report if project_mode() else None
@@ -507,6 +557,7 @@ class SynesthesiaPlayCommand(sublime_plugin.TextCommand):
                     settings().get('selector', 'source')))
                 return
             report = measure(self.view)
+            conductor.follow(self.view.id(), report.sheet, None)
         sublime.status_message(describe(report))
         conductor.renderer.submit(conductor.phrase, music.stage(report.health))
 
@@ -542,17 +593,17 @@ class SynesthesiaExplainCommand(sublime_plugin.TextCommand):
 
 
 class SynesthesiaDemoCommand(sublime_plugin.ApplicationCommand):
-    """Play every stage from beautiful to cursed."""
+    """Play the current code in every stage, from beautiful to cursed."""
 
     def run(self):
-        sublime.status_message('Synesthesia: ' + ' → '.join(name for _, name in music.STAGES))
+        sublime.status_message('Synesthesia: ' + ' → '.join(s.name for s in music.STAGES))
 
         def tour():
             try:
                 for stage in range(len(music.STAGES)):
-                    length, path = conductor.render('bar', stage, 0)
+                    seconds, path = conductor.bar(conductor.sheet, 0, stage)
                     conductor.accent_player.play(path)
-                    time.sleep(length * 1.4)
+                    time.sleep(seconds + 1.0)
             except Exception as e:
                 report_failure(e)
 

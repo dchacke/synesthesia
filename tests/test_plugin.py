@@ -225,6 +225,31 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(self.accents, ['down', 'same'])
         self.assertAlmostEqual(self.conductor.report.health, 0.75)
 
+    def test_music_jumps_to_where_the_code_changed(self):
+        view = View('a = 1\nb = 2\nc = 3\nd = 4\n')
+        self.conductor.listen(view)
+        self.assertEqual(self.conductor.focus, 0)  # a new file starts at the top
+        band = self.plugin.Band(self.conductor)
+        self.assertEqual(band.next_bar()[1], 0)
+        self.assertIsNone(self.conductor.focus)
+        view.text = 'a = 1\nb = 2\nc = 3\nd = 5\n'
+        self.conductor.listen(view)
+        self.assertEqual(self.conductor.focus, 3)
+        self.assertEqual(band.next_bar()[1], 1)  # two lines of lead-in
+        self.assertIs(band.next_bar()[0], self.conductor.sheet)
+
+    def test_project_mode_plays_the_file_that_changed(self):
+        a, b = report(1.0), report(0.9)
+        a.sheet, b.sheet = ['a'], ['b']
+        self.conductor.hear_project({'a.py': a, 'b.py': b}, [], initial=True)
+        c = report(0.9)
+        c.sheet = ['c']
+        self.conductor.hear_project({'a.py': a, 'b.py': c}, [('b.py', b, c)], initial=False)
+        self.assertEqual(self.conductor.playing, 'b.py')
+        self.assertEqual(self.conductor.sheet, ['c'])
+        self.conductor.hear_project({'a.py': a}, [('b.py', c, None)], initial=False)
+        self.assertEqual(self.conductor.playing, 'a.py')  # its file is gone
+
     def test_the_initial_project_scan_is_silent(self):
         self.conductor.hear_project({'a.py': report(1.0)}, [], initial=True)
         self.assertEqual(self.accents, [])
