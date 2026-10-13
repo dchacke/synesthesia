@@ -144,7 +144,7 @@ overlap sounds, so each sound cuts off the one before.
 
 ## Commands
 
-- `Synesthete: Toggle` (<kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>)
+- `Synesthete: Toggle`
 - `Synesthete: Listen to File` and `Synesthete: Listen to Project`
 - `Synesthete: Ambient Mode` and `Synesthete: Chime Mode`
 - `Synesthete: Play Now` plays a bar of the current code
@@ -153,8 +153,17 @@ overlap sounds, so each sound cuts off the one before.
 - `Synesthete: Open Visualizer`
 - `Synesthete: Play All Stages`
 - `Preferences: Synesthete Settings`
+- `Preferences: Synesthete Key Bindings`
 
 The same commands are under Tools > Synesthete.
+
+Synesthete adds no key bindings. To toggle it with
+<kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>, run `Preferences: Synesthete Key
+Bindings` and add this to your key bindings on the right:
+
+```json
+{ "keys": ["ctrl+alt+s"], "command": "synesthete_toggle" }
+```
 
 ## Tests
 
