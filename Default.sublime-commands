@@ -7,6 +7,7 @@
     { "caption": "Synesthesia: Play Now", "command": "synesthesia_play" },
     { "caption": "Synesthesia: Explain Score", "command": "synesthesia_explain" },
     { "caption": "Synesthesia: Show Map", "command": "synesthesia_map" },
+    { "caption": "Synesthesia: Open Visualizer", "command": "synesthesia_visualizer" },
     { "caption": "Synesthesia: Play All Stages", "command": "synesthesia_demo" },
     {
         "caption": "Preferences: Synesthesia Settings",

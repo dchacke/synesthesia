@@ -189,6 +189,7 @@ def install_fakes(cache):
     sublime.window_list = [Window()]  # the active one first
     sublime.windows = lambda: list(sublime.window_list)
     sublime.active_window = lambda: sublime.window_list[0] if sublime.window_list else None
+    sublime.run_command = lambda name, args=None: None
     sublime.find_syntax_for_file = lambda path, first_line='': (
         types.SimpleNamespace(scope='source.python') if path.endswith('.py') else None)
     sublime.score_selector = lambda scope, selector: int(scope.startswith(selector))
@@ -384,6 +385,23 @@ class PluginTest(unittest.TestCase):
         sheet._window = None  # its tab closed
         self.conductor.listen(view)
         self.assertIsNone(self.conductor.map)
+
+    def test_the_visualizer_hears_the_state_changes_and_bars(self):
+        opened = []
+        self.sublime.run_command = lambda name, args=None: opened.append(args['url'])
+        view = self.sublime.window_list[0].open(View('a = 1\n', path='/p/a.py'))
+        self.conductor.listen(view)
+        self.conductor.open_visualizer()
+        self.assertEqual(opened, [self.conductor.visualizer.url])
+        self.assertEqual(self.conductor.visualizer.state['files'][0]['name'], '/p/a.py')
+        sent = []
+        self.conductor.visualizer.publish = sent.append
+        view.text = 'a = (\n'
+        self.conductor.listen(view)
+        self.conductor.on_bar(3)
+        self.assertEqual([m['type'] for m in sent], ['change', 'state', 'bar'])
+        self.assertEqual(sent[0]['way'], 'down')
+        self.assertTrue(sent[1]['files'][0]['broken'])
 
     def test_closing_the_file_moves_on_or_falls_silent(self):
         window = self.sublime.window_list[0]

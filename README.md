@@ -99,6 +99,25 @@ shows the last ten minutes of health, with a tick for every change: green
 when it got better, red when it got worse. In file mode the map shows the
 open files.
 
+## The visualizer
+
+`Synesthesia: Open Visualizer` opens a browser tab where you fly through a
+tunnel made of your code: each file is a band of color around its walls, in
+its stage's color, as wide as the file is long. How healthy the code is
+decides how the flight feels. Beautiful code is a fast, smooth, neon flight
+toward a bright light; as it gets worse the tunnel slows, twists and sways,
+the colors bruise, and at the bottom the picture tears and splits and the
+light at the end goes out. Every change sends light racing down the tunnel
+from its file, green when it got better and red when it got worse, and the
+tunnel swells gently with each bar of the music. Nothing flashes more than
+three times a second, and the motion calms down when macOS's Reduce Motion
+setting is on.
+
+The page talks to Sublime through a small server on 127.0.0.1 that only
+answers requests carrying the random token in the page's address. To try it
+without Sublime, run `python3 tools/visualizer_demo.py` and open the address
+it prints.
+
 ## Modes
 
 - **ambient** (default): the code played continuously, plus the accents.
@@ -129,6 +148,7 @@ overlap sounds, so each sound cuts off the one before.
 - `Synesthesia: Play Now` plays a bar of the current code
 - `Synesthesia: Explain Score`
 - `Synesthesia: Show Map`
+- `Synesthesia: Open Visualizer`
 - `Synesthesia: Play All Stages`
 - `Preferences: Synesthesia Settings`
 

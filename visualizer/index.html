@@ -1,0 +1,289 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synesthesia</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud {
+    position: fixed; left: 24px; bottom: 24px; pointer-events: none; padding: 12px 16px;
+    border-radius: 10px; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-family: -apple-system, system-ui, sans-serif; color: rgba(255, 255, 255, 0.9);
+  }
+  #stage { font-size: 30px; font-weight: 700; letter-spacing: 0.05em; }
+  #detail { font-size: 13px; opacity: 0.7; margin-top: 4px; }
+  #last { font-size: 15px; margin-top: 10px; transition: opacity 3s; }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="hud"><div id="stage">waiting for Synesthesia…</div><div id="detail"></div><div id="last"></div></div>
+<script>
+'use strict';
+const TOKEN = '{{TOKEN}}';
+const STAGES = ['beautiful', 'good', 'decent', 'meh', 'bad', 'awful', 'cursed'];
+const THRESHOLDS = [0.9, 0.75, 0.6, 0.45, 0.3, 0.15, 0];
+const COLORS = [[76, 175, 80], [139, 195, 74], [205, 220, 57], [255, 193, 7],
+                [255, 152, 0], [244, 67, 54], [106, 27, 154]];
+const MAP = 512;  // texels around the tunnel
+const FLASH = 4;  // seconds a changed file glows
+const PULSES = 8;
+
+const FRAGMENT = `
+precision highp float;
+uniform vec2 res;
+uniform float t;
+uniform float health;
+uniform float beat;
+uniform float calm;  // 1 when the system asks for reduced motion
+uniform sampler2D files;
+uniform vec4 pulses[${PULSES}];  // angle 0-1, start time, strength, way (-1, 0, 1)
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 s = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), s.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), s.x), s.y);
+}
+
+// Healthy code glows in a neon rainbow; sick code in bruised reds and purples.
+vec3 palette(float x) {
+  vec3 a = mix(vec3(0.28, 0.03, 0.10), vec3(0.5), health);
+  vec3 b = mix(vec3(0.28, 0.05, 0.20), vec3(0.5), health);
+  vec3 d = mix(vec3(0.00, 0.15, 0.35), vec3(0.00, 0.33, 0.67), health);
+  return a + b * cos(6.28318 * (x + d));
+}
+
+float speed() { return (0.5 + 1.3 * health) * (1.0 - 0.5 * calm); }
+
+vec3 tunnel(vec2 uv, float sick) {
+  float r = max(length(uv), 0.001);
+  float z = 0.4 / r + t * speed();  // how far down the tunnel this pixel looks
+  float twist = 0.04 + 0.3 * sick * sick;
+  float u = fract(atan(uv.y, uv.x) / 6.28318 + 0.5 + z * twist + 0.08 * sick * sin(z * 1.3 + t));
+  vec4 file = texture2D(files, vec2(u, 0.5));  // whose wall this is
+  float warp = noise(vec2(u * 12.0, z * 2.0 - t)) * sick;
+  float wave = 0.5 + 0.5 * sin((z + warp) * 9.42);
+  float rings = pow(wave, 12.0);  // thin glowing hoops
+  vec3 hue = palette(z * 0.12 + u * 2.0 + t * 0.05);
+  vec3 col = mix(hue, file.rgb, 0.3) * (0.18 + 0.35 * wave) + hue * rings * 1.4;
+  col += file.rgb * file.a;  // a file that just changed glows
+  for (int i = 0; i < ${PULSES}; i++) {  // light racing down the tunnel from changed files
+    vec4 p = pulses[i];
+    float age = t - p.y;
+    if (p.z <= 0.0 || age < 0.0 || age > 5.0) continue;
+    float pz = t * speed() + 0.6 + age * 2.5;
+    float du = abs(fract(u - p.x + 0.5) - 0.5);
+    float glow = exp(-du * du * 500.0) * exp(-(z - pz) * (z - pz) * 3.0) * (1.0 - age / 5.0);
+    vec3 tint = p.w > 0.5 ? vec3(0.55, 1.0, 0.65) : (p.w < -0.5 ? vec3(1.0, 0.3, 0.25) : vec3(0.9));
+    col += tint * glow * 1.2 * p.z;
+  }
+  float fog = smoothstep(0.0, 0.4, r);
+  vec3 far = mix(vec3(0.10, 0.0, 0.03), vec3(1.3, 1.2, 1.1), health);  // light at the end, or none
+  return mix(far * (0.8 + 0.15 * beat), col, fog);
+}
+
+void main() {
+  float sick = 1.0 - health;
+  vec2 uv = (gl_FragCoord.xy - 0.5 * res) / res.y;
+  // Nothing here may flash more than three times a second, to keep it safe
+  // for people with photosensitive epilepsy.
+  uv += 0.12 * sick * (1.0 - calm) * vec2(sin(t * 0.9), cos(t * 0.7));  // the tunnel sways
+  float tick = floor(t * 2.0);
+  float band = floor(gl_FragCoord.y / (20.0 + 40.0 * hash(vec2(tick, 1.0))));
+  float tear = step(1.0 - 0.08 * sick * sick * sick, hash(vec2(band, tick))) * (1.0 - calm);
+  uv.x += tear * (hash(vec2(band, tick + 0.5)) - 0.5) * 0.12;  // the picture tears when things are bad
+  float split = 0.014 * sick * sick;  // and its colors drift apart
+  vec3 col;
+  if (split > 0.0005) {
+    col = vec3(tunnel(uv + vec2(split, 0.0), sick).r, tunnel(uv, sick).g,
+               tunnel(uv - vec2(split, 0.0), sick).b);
+  } else {
+    col = tunnel(uv, sick);
+  }
+  col *= 1.0 + 0.12 * beat;
+  vec2 q = gl_FragCoord.xy / res;
+  col *= 0.45 + 0.55 * pow(16.0 * q.x * q.y * (1.0 - q.x) * (1.0 - q.y), 0.25);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+const canvas = document.getElementById('screen');
+const gl = canvas.getContext('webgl', {antialias: false});
+const hud = {
+  stage: document.getElementById('stage'),
+  detail: document.getElementById('detail'),
+  last: document.getElementById('last'),
+};
+
+let state = {health: 1, files: []};
+let shownHealth = 1;  // glides toward state.health
+let segments = [];  // {name, start, end, color}, around the tunnel
+let texelSegment = new Int32Array(MAP);
+const flashes = new Map();  // file name -> time it changed
+const pulses = [];  // {u, at, way}
+let barAt = -100;  // when the music's latest bar began
+
+function now() { return performance.now() / 1000; }
+
+function stageOf(health) {
+  const i = THRESHOLDS.findIndex(threshold => health >= threshold);
+  return i < 0 ? STAGES.length - 1 : i;
+}
+
+function layout() {
+  const files = state.files.slice().sort((a, b) => a.name < b.name ? -1 : 1);
+  const total = files.reduce((sum, f) => sum + Math.max(f.lines, 1), 0) || 1;
+  let start = 0;
+  segments = files.map(f => {
+    const end = start + Math.max(f.lines, 1) / total;
+    const segment = {name: f.name, start, end, color: COLORS[stageOf(f.health)], broken: f.broken};
+    start = end;
+    return segment;
+  });
+  let s = 0;
+  for (let i = 0; i < MAP; i++) {
+    const u = (i + 0.5) / MAP;
+    while (s < segments.length - 1 && u > segments[s].end) s++;
+    texelSegment[i] = segments.length ? s : -1;
+  }
+}
+
+function showState() {
+  const stage = stageOf(state.health);
+  hud.stage.textContent = STAGES[stage];
+  hud.stage.style.color = 'rgb(' + COLORS[stage].join(',') + ')';
+  const broken = state.files.filter(f => f.broken).length;
+  hud.detail.textContent = state.health.toFixed(2) + ' · ' + state.files.length + ' files' +
+    (broken ? ' · ' + broken + ' broken' : '');
+}
+
+function handle(message) {
+  const t = now();
+  if (message.type === 'state') {
+    state = message;
+    layout();
+    showState();
+  } else if (message.type === 'change') {
+    flashes.set(message.file, t);
+    const segment = segments.find(s => s.name === message.file);
+    if (segment) {
+      pulses.push({u: (segment.start + segment.end) / 2, at: t, way: message.way});
+      if (pulses.length > PULSES) pulses.shift();
+    }
+    const arrow = {up: '↗', down: '↘', same: '→'}[message.way] || '';
+    hud.last.textContent = arrow + ' ' + (message.label || message.file);
+    hud.last.style.transition = 'none';
+    hud.last.style.opacity = 1;
+    requestAnimationFrame(() => { hud.last.style.transition = 'opacity 3s'; hud.last.style.opacity = 0; });
+  } else if (message.type === 'bar') {
+    barAt = t;
+  }
+}
+
+function connect() {
+  const events = new EventSource('/events?token=' + encodeURIComponent(TOKEN));
+  events.onmessage = e => handle(JSON.parse(e.data));
+  events.onerror = () => { hud.detail.textContent = 'reconnecting to Sublime…'; };
+}
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+  return shader;
+}
+
+function start() {
+  if (!gl) {
+    hud.stage.textContent = 'This browser has no WebGL.';
+    return;
+  }
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER,
+    'attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }'));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const position = gl.getAttribLocation(program, 'p');
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const texels = new Uint8Array(MAP * 4);
+
+  const u = name => gl.getUniformLocation(program, name);
+  const uniforms = {res: u('res'), t: u('t'), health: u('health'), beat: u('beat'),
+                    calm: u('calm'), files: u('files'), pulses: u('pulses')};
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const pulseData = new Float32Array(PULSES * 4);
+
+  function frame() {
+    const t = now();
+    const scale = Math.min(window.devicePixelRatio || 1, 1.5);
+    const width = Math.floor(canvas.clientWidth * scale), height = Math.floor(canvas.clientHeight * scale);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    gl.viewport(0, 0, width, height);
+    shownHealth += (state.health - shownHealth) * 0.04;
+
+    for (let i = 0; i < MAP; i++) {  // each file's color, and how brightly it glows
+      const segment = segments[texelSegment[i]];
+      const o = i * 4;
+      if (!segment) {
+        texels.set([40, 40, 40, 0], o);
+        continue;
+      }
+      const edge = i > 0 && texelSegment[i - 1] !== texelSegment[i] &&
+                   (segment.end - segment.start) * MAP > 3;
+      const dim = edge ? 0.35 : 1;
+      const since = t - (flashes.get(segment.name) || -100);
+      const glow = since < FLASH ? 1 - since / FLASH : (segment.broken ? 0.2 + 0.15 * Math.sin(t * 2) : 0);
+      texels[o] = segment.color[0] * dim;
+      texels[o + 1] = segment.color[1] * dim;
+      texels[o + 2] = segment.color[2] * dim;
+      texels[o + 3] = Math.max(0, glow) * 255;
+    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, MAP, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, texels);
+
+    pulseData.fill(0);
+    pulses.forEach((p, i) => {
+      pulseData.set([p.u, p.at, 1, p.way === 'up' ? 1 : p.way === 'down' ? -1 : 0], i * 4);
+    });
+    const since = (t - barAt) / 0.35;  // a soft swell at the start of each bar
+    const pulse = Math.exp(-since * since);
+
+    gl.uniform2f(uniforms.res, width, height);
+    gl.uniform1f(uniforms.t, t);
+    gl.uniform1f(uniforms.health, shownHealth);
+    gl.uniform1f(uniforms.beat, pulse);
+    gl.uniform1f(uniforms.calm, reducedMotion.matches ? 1 : 0);
+    gl.uniform1i(uniforms.files, 0);
+    gl.uniform4fv(uniforms.pulses, pulseData);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+start();
+connect();
+</script>
+</body>
+</html>

@@ -27,10 +27,12 @@ for _module in [m for m in sys.modules if m.startswith(__package__ + '.core')]:
 from .core import analysis, checker, mapview, music, score  # noqa: E402
 from .core.player import Player  # noqa: E402
 from .core.sampler import Library  # noqa: E402
+from .core.visualizer import Visualizer  # noqa: E402
 from .core.watcher import Watcher  # noqa: E402
 
 SETTINGS = 'Synesthesia.sublime-settings'
 STATUS_KEY = 'synesthesia'
+PACKAGE = os.path.dirname(os.path.abspath(__file__))
 PANEL = 'synesthesia'
 SOUND_VERSION = 3  # bump when the music changes, so stale renders are dropped
 ACCENT_GAP = 0.12  # seconds between accents, so a burst of changes cascades
@@ -59,7 +61,7 @@ def cache_dir():
 
 def plugin_loaded():
     global conductor, library
-    library = Library(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'samples'))
+    library = Library(os.path.join(PACKAGE, 'samples'))
 
     def find_checkers():
         global search_path
@@ -241,6 +243,7 @@ class Conductor:
         self.files = {}  # view id -> (name, report), in file mode
         self.map = None  # the map's tab
         self.map_generation = 0
+        self.visualizer = None  # the browser's view, once opened
 
     def configure(self):
         s = settings()
@@ -266,6 +269,8 @@ class Conductor:
         self.stop_watching()
         if self.map is not None and self.map.window() is not None:
             self.map.close()  # a reloaded plugin starts a map of its own
+        if self.visualizer is not None:
+            self.visualizer.stop()
         if self.band is not None:
             self.band.stop()
         self.accent_player.stop()
@@ -475,6 +480,7 @@ class Conductor:
         if not self.history or self.history[-1][1] != report.health:
             self.history.append((time.time(), report.health))
         self.refresh_map()
+        self.publish_state()
         if scope and settings().get('show_status', True):
             self.status(describe(report, scope))
         stage = music.stage(report.health)
@@ -488,10 +494,14 @@ class Conductor:
     # The map
 
     def record(self, name, way):
-        """Note a change, to light up its tile and tick the timeline."""
+        """Note a change, to light up its tile, tick the timeline, and send
+        light down the visualizer's tunnel."""
         now = time.time()
         self.activity[name] = (now, way)
         self.changes.append((now, way))
+        if self.visualizer is not None:
+            label = mapview.relative(name, self.shown()[1])
+            self.visualizer.publish({'type': 'change', 'file': name, 'label': label, 'way': way})
 
     def show_map(self, window):
         if self.map is not None and self.map.window() is not None:
@@ -502,15 +512,45 @@ class Conductor:
         generation = self.map_generation
         sublime.set_timeout_async(lambda: self.tick(generation), 1000)
 
-    def map_html(self):
+    def shown(self):
+        """(name -> report, folders) for the files being heard: the project's,
+        or in file mode the open files."""
         entry = self.watchers.get(self.window_id)
         if entry is not None:
-            files, folders = self.project, entry[1]
-        else:
-            files, folders = dict(self.files.values()), ()
+            return self.project, entry[1]
+        return dict(self.files.values()), ()
+
+    def map_html(self):
+        files, folders = self.shown()
         health = self.report.health if self.report else None
         return mapview.render(files, health, self.activity, list(self.history),
                               list(self.changes), time.time(), folders)
+
+    # The visualizer
+
+    def open_visualizer(self):
+        if self.visualizer is None:
+            with open(os.path.join(PACKAGE, 'visualizer', 'index.html'), encoding='utf-8') as f:
+                self.visualizer = Visualizer(f.read())
+        self.publish_state()
+        sublime.run_command('open_url', {'url': self.visualizer.url})
+
+    def publish_state(self):
+        if self.visualizer is None:
+            return
+        files, folders = self.shown()
+        self.visualizer.publish({
+            'type': 'state',
+            'health': self.report.health if self.report else 1.0,
+            'files': [{'name': name, 'label': mapview.relative(name, folders), 'lines': r.lines,
+                       'health': r.health, 'broken': r.bugs > 0} for name, r in files.items()],
+        })
+
+    def on_bar(self, stage):
+        """A bar started playing, so the visualizer can pulse on its beats."""
+        if self.visualizer is not None:
+            s = music.STAGES[stage]
+            self.visualizer.publish({'type': 'bar', 'step': s.step, 'steps': music.STEPS})
 
     def refresh_map(self):
         if self.map is not None and self.map.window() is None:
@@ -635,6 +675,7 @@ class Band(threading.Thread):
                     ready = None
                     continue  # the code changed while the bar was rendering
                 self.player.play(ready[2])
+                self.conductor.on_bar(plan[2])
                 started, seconds = time.monotonic(), ready[1]
                 self.cursor = plan[1] + music.STEPS
                 upcoming = self.next_bar()
@@ -790,6 +831,13 @@ class SynesthesiaMapCommand(sublime_plugin.WindowCommand):
 
     def run(self):
         conductor.show_map(self.window)
+
+
+class SynesthesiaVisualizerCommand(sublime_plugin.ApplicationCommand):
+    """Open the visualizer: a tunnel through the code, in the browser."""
+
+    def run(self):
+        conductor.open_visualizer()
 
 
 class SynesthesiaDemoCommand(sublime_plugin.ApplicationCommand):
