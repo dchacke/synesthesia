@@ -42,11 +42,12 @@ def excluded(path, patterns):
 
 class Watcher(threading.Thread):
     """Calls `measure(path, text)` for every wanted file once, then again
-    whenever it changes, and `changed(reports, changes, initial)` after each
-    round that changed something. `reports` maps paths to their latest
-    reports; `changes` lists (path, old report or None, new report or None).
-    The first call, after the initial scan, has `initial` set and no changes.
-    Errors go to `failed(error)` and the watcher carries on."""
+    whenever it changes, and `changed(reports, changes, initial, edited)`
+    after each round that changed something. `reports` maps paths to their
+    latest reports; `changes` lists (path, old report or None, new report or
+    None). The first call, after the initial scan, has `initial` set and no
+    changes; calls caused by `update` have `edited` set. Errors go to
+    `failed(error)` and the watcher carries on."""
 
     def __init__(self, folders, wanted, measure, changed, progress=None, failed=None,
                  interval=0.5, exclude=(), max_files=2000, max_bytes=1000000):
@@ -90,7 +91,7 @@ class Watcher(threading.Thread):
             old = self.reports.get(path)
             self.reports[path] = report
             reports = dict(self.reports)
-        self.changed(reports, [(path, old, report)], initial=False)
+        self.changed(reports, [(path, old, report)], initial=False, edited=True)
 
     def refresh(self, path):
         """Read `path` from disk again, as when unsaved changes are discarded."""

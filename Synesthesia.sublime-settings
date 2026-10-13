@@ -43,6 +43,19 @@
     // null means the view's widest ruler, or 100 if it has none.
     "max_line_length": null,
 
+    // Languages' own parsers, which catch broken code that syntax
+    // highlighting misses. Each gets the code on stdin and fails if it
+    // doesn't parse; a file that doesn't parse counts as three bugs. None of
+    // these run the code. Tools are looked up on your login shell's PATH.
+    // node can't parse JSX, so remove it if your .js files contain JSX.
+    "syntax_checkers": [
+        { "selector": "source.ruby", "command": ["ruby", "-c"] },
+        { "selector": "source.python", "command": ["python3", "-c", "import ast, sys; ast.parse(sys.stdin.read())"] },
+        { "selector": "source.js", "command": ["node", "--check", "--input-type=module"] },
+        { "selector": "source.shell.bash", "command": ["bash", "-n"] },
+        { "selector": "source.php", "command": ["php", "-l"] }
+    ],
+
     // Show the stage in the status bar.
     "show_status": true,
 

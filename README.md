@@ -40,6 +40,12 @@ never drops below bad.
 comments. One bug in beautiful code sounds meh, two bad, three awful, eight
 cursed.
 
+Syntax highlighting misses a lot of broken code, such as a Ruby class
+without its `end`, so Synesthesia also asks the language's own parser:
+`ruby -c`, Python's `ast`, `node --check`, `bash -n` and `php -l`. None of
+them run the code. A file that doesn't parse counts as at least three bugs.
+Add other languages in the `syntax_checkers` setting.
+
 Everything comes from Sublime's own syntax definitions (scopes such as
 `entity.name.function` and `keyword.control.conditional`), so it works for
 any language with a decent syntax. `Synesthesia: Explain Score` shows what
@@ -83,7 +89,7 @@ overlap sounds, so each sound cuts off the one before.
 
 ## Commands
 
-- `Synesthesia: Toggle`
+- `Synesthesia: Toggle` (<kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>)
 - `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`
 - `Synesthesia: Ambient Mode` and `Synesthesia: Chime Mode`
 - `Synesthesia: Play Now` plays a phrase for the current score

@@ -76,7 +76,7 @@ class View:
         return before.count('\n'), len(before) - before.rfind('\n') - 1
 
     def match_selector(self, point, selector):
-        return selector.split('.')[0] == self.scope.split('.')[0]
+        return self.scope.startswith(selector)
 
     def find_by_selector(self, selector):
         return [Region(a, b) for a, b in self.scopes.get(selector, [])]
@@ -163,6 +163,19 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(r.unbalanced_brackets, 0)
         self.assertEqual(r.syntax_errors, 1)
         self.assertEqual(r.health, analysis.health(1.0, 1))
+
+    def test_syntax_checkers_catch_what_highlighting_misses(self):
+        rejects = [sys.executable, '-c', 'import sys; sys.exit("end" not in sys.stdin.read())']
+        self.sublime.settings['syntax_checkers'] = [
+            {'selector': 'source.ruby', 'command': rejects},
+            {'selector': 'source.python', 'command': ['no-such-checker']},
+        ]
+        broken = self.plugin.measure(View('class A\n  foo;-!\n', scope='source.ruby'))
+        self.assertEqual(broken.broken, 1)
+        self.assertEqual(broken.bugs, analysis.BROKEN)
+        self.assertEqual(self.plugin.measure(View('class A\nend\n', scope='source.ruby')).broken, 0)
+        self.assertEqual(self.plugin.measure(View('x = (', scope='source.python')).broken, 0)
+        self.assertIn('no-such-checker', self.plugin.unrunnable)
 
     def test_ignores_prose_panels_and_widgets(self):
         self.assertTrue(self.plugin.wants(View('x')))
@@ -319,6 +332,8 @@ class ProjectTest(unittest.TestCase):
         self.wait_for(lambda: self.conductor.watcher.ready)
         self.conductor.listen(View('def f():\n    return g(1\n', path=self.path))
         self.assertEqual(self.accents, ['down'])
+        self.conductor.listen(View('def f():\n    return g(1\n\n', path=self.path))
+        self.assertEqual(self.accents, ['down'])  # typing that changes nothing is quiet
         self.conductor.listen(View('x = 1\n', path=os.path.join(self.folder.name, 'elsewhere.py')))
         self.assertEqual(self.accents, ['down'])  # not part of the project
 

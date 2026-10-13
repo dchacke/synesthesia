@@ -21,6 +21,7 @@ NOT_NEWLINE_RE = re.compile(r'[^\n]')
 BLOCK_END_RE = re.compile(r'^(?:[}\])]|end\b)')
 DUPLICATE_WINDOW = 4  # consecutive lines that count as a copied chunk
 DUPLICATE_MIN_CHARS = 60  # ignore windows of boilerplate like "}\n}\n"
+BROKEN = 3  # a file that doesn't parse counts as at least this many bugs
 
 
 @dataclass
@@ -46,10 +47,15 @@ class Report:
     trailing_whitespace: int = 0
     mixed_indentation: bool = False
     markers: int = 0
+    broken: int = 0  # files the language's own parser rejected
+    total_bugs: int = None  # set when combining files
 
     @property
     def bugs(self):
-        return self.syntax_errors + self.unbalanced_brackets
+        if self.total_bugs is not None:
+            return self.total_bugs
+        found = self.syntax_errors + self.unbalanced_brackets
+        return max(found, BROKEN) if self.broken else found
 
 
 def mask(text, spans):
@@ -144,7 +150,7 @@ def health(quality, bugs):
 
 
 def examine(text, code=None, comments='', syntax_errors=0, functions=(),
-            branches=(), tab_size=4, limits=None, check_brackets=True):
+            branches=(), tab_size=4, limits=None, check_brackets=True, broken=False):
     """Score `text`.
 
     code: the same text with strings and comments masked out (see `mask`).
@@ -153,6 +159,7 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
     functions: line numbers where functions start.
     branches: line numbers of branching keywords (if, for, while, case,
         catch, and, or ...), one entry per keyword.
+    broken: whether the language's own parser rejected the code.
     """
     limits = limits or Limits()
     code = text if code is None else code
@@ -211,8 +218,8 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
 
     q = quality(lines, function_excess, branch_excess, nesting_excess, duplicates,
                 long_lines, trailing, mixed, markers)
-    return Report(
-        health=health(q, syntax_errors + unbalanced),
+    report = Report(
+        health=1.0,
         quality=q,
         lines=lines,
         syntax_errors=syntax_errors,
@@ -225,7 +232,10 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
         trailing_whitespace=trailing,
         mixed_indentation=mixed,
         markers=markers,
+        broken=int(broken),
     )
+    report.health = health(q, report.bugs)
+    return report
 
 
 def combine(reports):
@@ -251,4 +261,6 @@ def combine(reports):
         trailing_whitespace=sum(r.trailing_whitespace for r in reports),
         mixed_indentation=any(r.mixed_indentation for r in reports),
         markers=sum(r.markers for r in reports),
+        broken=sum(r.broken for r in reports),
+        total_bugs=bugs,
     )

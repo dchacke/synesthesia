@@ -23,7 +23,7 @@ import sublime_plugin
 for _module in [m for m in sys.modules if m.startswith(__package__ + '.core')]:
     del sys.modules[_module]
 
-from .core import analysis, music  # noqa: E402
+from .core import analysis, checker, music  # noqa: E402
 from .core.player import Player  # noqa: E402
 from .core.watcher import Watcher  # noqa: E402
 
@@ -37,6 +37,8 @@ BRANCHES = ('keyword.control.conditional, keyword.control.loop, '
             'keyword.control.exception.catch, keyword.operator.logical')
 
 conductor = None
+search_path = None  # where to find syntax checkers; see checker.login_path
+unrunnable = set()  # checkers that failed to start, so we only say so once
 
 
 def settings():
@@ -53,6 +55,11 @@ def cache_dir():
 
 def plugin_loaded():
     global conductor
+
+    def find_checkers():
+        global search_path
+        search_path = checker.login_path()
+    threading.Thread(target=find_checkers, daemon=True).start()
     # Renders from other versions of the music would otherwise linger.
     root = cache_root()
     if os.path.isdir(root):
@@ -99,6 +106,20 @@ def line_limit(view):
     return max(columns) if columns else 100
 
 
+def parses(view, text):
+    """Whether the language's own parser accepts `text`, or None if no
+    checker is set up for its language or the checker can't run."""
+    for entry in settings().get('syntax_checkers', []):
+        if view.match_selector(0, entry['selector']):
+            result = checker.parses(entry['command'], text, search_path)
+            if result is None and entry['command'][0] not in unrunnable:
+                unrunnable.add(entry['command'][0])
+                print('Synesthesia: could not run {}, so {} files are not checked'.format(
+                    entry['command'][0], entry['selector']))
+            return result
+    return None
+
+
 def measure(view):
     s = settings()
     text = view.substr(sublime.Region(0, view.size()))
@@ -121,6 +142,7 @@ def measure(view):
             function_lines=s.get('max_function_lines', 40),
             branches=s.get('max_branches', 10)),
         check_brackets=s.get('check_brackets', True),
+        broken=parses(view, text) is False,
     )
 
 
@@ -248,12 +270,13 @@ class Conductor:
             if done % 25 == 0:
                 self.status('♪ listening to the project… {}/{}'.format(done, total))
 
-        def changed(reports, changes, initial):
-            window.destroy_output_panel(PANEL)  # frees its undo history
+        def changed(reports, changes, initial, edited=False):
+            if not edited:  # edits arrive on another thread, which mustn't touch the panel
+                window.destroy_output_panel(PANEL)  # frees its undo history
             if initial:
                 print('Synesthesia: listening to {} source files in {}'.format(
                     len(reports), ', '.join(folders)))
-            self.hear_project(reports, changes, initial)
+            self.hear_project(reports, changes, initial, edited)
 
         self.watcher = Watcher(
             folders, wanted, measure_file, changed, progress, report_failure,
@@ -270,15 +293,20 @@ class Conductor:
         self.watcher = None
         self.watched = None
 
-    def hear_project(self, reports, changes, initial):
+    def hear_project(self, reports, changes, initial, edited=False):
+        """`edited` means the changes come from typing rather than from disk;
+        those are only worth an accent when the score moves."""
         report = analysis.combine(reports.values())
         if report is None:
             self.status('♪ no source files in this project')
             return
         if not initial:
             for path, old, new in changes:
-                if new is not None:  # a deleted file has nothing to say
-                    self.accent(new.health, direction(old.health, new.health) if old else 'same')
+                if new is None:
+                    continue  # a deleted file has nothing to say
+                if edited and old is not None and abs(new.health - old.health) < 0.02:
+                    continue
+                self.accent(new.health, direction(old.health, new.health) if old else 'same')
         self.hear(report, ' · project')
 
     # Sound
@@ -494,6 +522,8 @@ class SynesthesiaExplainCommand(sublime_plugin.TextCommand):
             return
         r = conductor.report if project else measure(self.view)
         rows = [
+            ('Files that don\'t parse' if project else 'Doesn\'t parse', r.broken if project else
+             ('yes' if r.broken else 'no')),
             ('Syntax errors', r.syntax_errors),
             ('Unbalanced brackets', r.unbalanced_brackets),
             ('Long functions', r.long_functions),
