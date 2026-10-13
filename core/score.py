@@ -45,3 +45,22 @@ def first_difference(old, new):
     if len(old) != len(new):
         return min(len(old), len(new))
     return None
+
+
+def changed_lines(old, new, limit=4):
+    """Up to `limit` non-blank lines of `new` from the stretch that differs
+    from `old`; for a new file, its first lines. If only blank lines changed
+    or lines were deleted, the line next to the change."""
+    playable = [line for line in new or [] if line.kind != 'blank']
+    if old is None or not playable:
+        return playable[:limit]
+    start = first_difference(old, new)
+    if start is None:
+        return []
+    end, old_end = len(new), len(old)
+    while end > start and old_end > start and new[end - 1] == old[old_end - 1]:
+        end, old_end = end - 1, old_end - 1  # the unchanged tail
+    lines = [line for line in new[start:end] if line.kind != 'blank'][:limit]
+    if not lines:
+        lines = [line for line in new[max(0, start - 1):start + 1] if line.kind != 'blank'][:1]
+    return lines

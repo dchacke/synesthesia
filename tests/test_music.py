@@ -78,6 +78,16 @@ class ArrangeTest(unittest.TestCase):
         events, _ = music.arrange([], 0, 3)
         self.assertEqual(len(events), 1)
 
+    def test_accents_from_changed_lines(self):
+        lines = [line for line in SHEET if line.kind != 'blank']
+        up = music.accent_events(1, 'up', lines)
+        self.assertEqual(len(up), len(lines))
+        self.assertEqual([e.freq for e in up], sorted(e.freq for e in up))
+        down = music.accent_events(1, 'down', lines)
+        self.assertEqual([e.freq for e in down], sorted((e.freq for e in down), reverse=True))
+        self.assertNotEqual(music.accent_events(1, 'same', lines[:2]),
+                            music.accent_events(1, 'same', lines[2:4]))
+
     def test_accents(self):
         for index in range(len(music.STAGES)):
             up = music.accent_events(index, 'up')

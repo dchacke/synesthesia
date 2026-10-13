@@ -122,7 +122,7 @@ def _line_events(s, k, line):
     time = max(0.0, k * s.step + _spread(key, s.jitter))
     velocity = 0.35 + 0.45 * min(line.length, 80) / 80
     pan, cents = _spread(key >> 3, 0.6), _spread(key >> 5, s.detune)
-    note = degree(s.scale, min(line.depth * 2 + key % 3, len(s.scale) * 5 // 2))
+    note = _pitch_of(s, line)
     spec = s.comment if line.kind == 'comment' else s.melody
     events = [_sound(spec, time, velocity, pan, note, cents, 3.0, key)]
     if s.cluster:
@@ -159,19 +159,37 @@ def _lines(sheet, cursor):
     return [sheet[cursor + k] if cursor + k < len(sheet) else None for k in range(STEPS)]
 
 
-def accent_events(index, direction):
-    """A short figure on the stage's melody instrument: up when things got
-    better, down when they got worse, a single note otherwise."""
+def accent_events(index, direction, lines=()):
+    """A quick run of notes on the stage's melody instrument, one for each of
+    the `lines` that changed, pitched the way the melody would play them, and
+    arranged to rise when things got better, fall when they got worse, or
+    stay in the code's order otherwise. Without lines, a fixed figure."""
     s = STAGES[index]
-    steps = {'up': (0, 2), 'down': (2, 0), 'same': (0,)}[direction]
+    lines = list(lines) or [None]
+    notes = [_pitch_of(s, line) if line else degree(s.scale, 0) for line in lines]
+    if direction != 'same':
+        notes.sort(reverse=direction == 'down')
+        if len(notes) == 1 or notes[0] == notes[-1]:  # make the turn audible
+            step = degree(s.scale, 2)
+            notes = [notes[0], notes[0] + (step if direction == 'up' else -step)]
+            lines = (lines * 2)[:2]
     events = []
-    for k, d in enumerate(steps):
-        transpose = 12 + degree(s.scale, d)
-        pan = 0.25 * (2 * k - 1) if len(steps) > 1 else 0.0
-        events.append(_sound(s.melody, 0.11 * k, 0.8, pan, transpose, s.detune * (0.5 - k), 2.0))
+    for k, (note, line) in enumerate(zip(notes, lines)):
+        key = line.key if line else k
+        velocity = (0.8 if direction != 'same' else 0.6) * (0.85 + 0.15 * (k == len(notes) - 1))
+        pan = 0.5 * (k / max(len(notes) - 1, 1) - 0.5)
+        cents = _spread(key >> 5, s.detune)
+        events.append(_sound(s.melody, 0.09 * k, velocity, pan, 12 + note, cents, 1.8, key))
         if s.cluster:
-            events.append(_sound(s.melody, 0.11 * k, 0.5, -pan, transpose + 1, 0.0, 2.0))
+            events.append(_sound(s.melody, 0.09 * k, velocity * 0.6, -pan, 13 + note, -cents,
+                                 1.8, key))
     return events
+
+
+def _pitch_of(s, line):
+    """Where a line sits in stage `s`'s scale: deeper code climbs, and its
+    text nudges it."""
+    return degree(s.scale, min(line.depth * 2 + line.key % 3, len(s.scale) * 5 // 2))
 
 
 def singing_saw(points, seconds):
@@ -296,14 +314,17 @@ def bar_file(library, sheet, cursor, index, volume, directory):
     return seconds, path
 
 
-def accent_file(library, index, direction, volume, directory):
-    name = 'accent-{}-{}-{:03d}.wav'.format(index, direction, round(volume * 100))
-    path = os.path.join(directory, name)
+def accent_file(library, index, direction, volume, directory, lines=()):
+    """Render an accent to a WAV, cached by what's in it, and return its path."""
+    digest = hashlib.sha1(repr((VERSION, index, direction, list(lines), round(volume, 2)))
+                          .encode()).hexdigest()[:16]
+    path = os.path.join(directory, 'accents', 'accent-{}-{}.wav'.format(index, digest))
     if not os.path.exists(path):
-        os.makedirs(directory, exist_ok=True)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         wet, size = STAGES[index].room
-        left, right = render(library, accent_events(index, direction), (wet, size * 0.9))
+        left, right = render(library, accent_events(index, direction, lines), (wet, size * 0.9))
         write_wav(path, left, right, volume)
+        _prune(os.path.dirname(path))
     return path
 
 

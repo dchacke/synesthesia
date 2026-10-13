@@ -188,7 +188,7 @@ SUBLIME = install_fakes(CACHE.name)
 sys.modules['Synesthesia'] = types.ModuleType('Synesthesia')
 sys.modules['Synesthesia'].__path__ = [ROOT]
 PLUGIN = importlib.import_module('Synesthesia.synesthesia')
-from Synesthesia.core import analysis  # noqa: E402
+from Synesthesia.core import analysis, score  # noqa: E402
 
 
 def report(health):
@@ -210,7 +210,7 @@ class PluginTest(unittest.TestCase):
         self.conductor = self.plugin.conductor
         self.accents = []
         self.phrases = []
-        self.conductor.accent = lambda health, way: self.accents.append(way)
+        self.conductor.accent = lambda health, way, lines=(): self.accents.append(way)
         self.conductor.renderer = mock.Mock(submit=lambda fn, *args: self.phrases.append(args))
 
     def test_measure_reads_scopes(self):
@@ -255,6 +255,15 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(self.plugin.line_limit(View('')), 100)
         self.sublime.settings['max_line_length'] = 120
         self.assertEqual(self.plugin.line_limit(View('', rulers=[79])), 120)
+
+    def test_accents_are_made_of_the_lines_that_changed(self):
+        heard = []
+        self.conductor.accent = lambda health, way, lines=(): heard.append(lines)
+        view = View('a = 1\nb = 2\nc = 3\n')
+        self.conductor.listen(view)
+        view.text = 'a = 1\nb = (\nc = 3\n'
+        self.conductor.listen(view)
+        self.assertEqual([line.key for line in heard[0]], [self.conductor.sheet[1].key])
 
     def test_accents_follow_the_direction_of_change(self):
         view = View('x = 1\n')
@@ -345,13 +354,13 @@ class PluginTest(unittest.TestCase):
 
     def test_project_mode_plays_the_file_that_changed(self):
         a, b = report(1.0), report(0.9)
-        a.sheet, b.sheet = ['a'], ['b']
+        a.sheet, b.sheet = score.read('a'), score.read('b')
         self.conductor.hear_project({'a.py': a, 'b.py': b}, [], initial=True)
         c = report(0.9)
-        c.sheet = ['c']
+        c.sheet = score.read('c')
         self.conductor.hear_project({'a.py': a, 'b.py': c}, [('b.py', b, c)], initial=False)
         self.assertEqual(self.conductor.playing, 'b.py')
-        self.assertEqual(self.conductor.sheet, ['c'])
+        self.assertEqual(self.conductor.sheet, c.sheet)
         self.conductor.hear_project({'a.py': a}, [('b.py', c, None)], initial=False)
         self.assertEqual(self.conductor.playing, 'a.py')  # its file is gone
 
@@ -388,7 +397,7 @@ class ProjectTest(unittest.TestCase):
         self.addCleanup(PLUGIN.plugin_unloaded)
         self.conductor = PLUGIN.conductor
         self.accents = []
-        self.conductor.accent = lambda health, way: self.accents.append(way)
+        self.conductor.accent = lambda health, way, lines=(): self.accents.append(way)
         self.conductor.renderer = mock.Mock()
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)

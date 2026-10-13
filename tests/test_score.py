@@ -31,5 +31,18 @@ class DifferenceTest(unittest.TestCase):
         self.assertEqual(score.first_difference(a, score.read('a\nb')), 2)
 
 
+class ChangedLinesTest(unittest.TestCase):
+    def test_the_changed_stretch(self):
+        old = score.read('a\nb\nc\nd')
+        new = score.read('a\nB\nC\nd')
+        self.assertEqual(score.changed_lines(old, new), new[1:3])
+
+    def test_new_files_deletions_and_nothing(self):
+        old = score.read('a\nb\nc')
+        self.assertEqual(score.changed_lines(None, old, limit=2), old[:2])
+        self.assertEqual(score.changed_lines(old, score.read('a\nc')), [score.read('a')[0]])
+        self.assertEqual(score.changed_lines(old, old), [])
+
+
 if __name__ == '__main__':
     unittest.main()

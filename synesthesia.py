@@ -293,7 +293,8 @@ class Conductor:
         if settings().get('show_status', True):
             view.set_status(STATUS_KEY, describe(report))
         if previous is not None and (saved or abs(report.health - previous.health) >= 0.02):
-            self.accent(report.health, direction(previous.health, report.health))
+            self.accent(report.health, direction(previous.health, report.health),
+                        score.changed_lines(previous.sheet, report.sheet))
         self.follow(view.id(), report.sheet, previous.sheet if previous else None)
         self.hear(report)
 
@@ -421,7 +422,8 @@ class Conductor:
             self.follow(path, new.sheet, old.sheet if old else None)
             if edited and old is not None and abs(new.health - old.health) < 0.02:
                 continue
-            self.accent(new.health, direction(old.health, new.health) if old else 'same')
+            way = direction(old.health, new.health) if old else 'same'
+            self.accent(new.health, way, score.changed_lines(old.sheet if old else None, new.sheet))
         if self.playing not in reports:  # at first, or when its file is gone
             latest = max(reports, key=modified)  # the file worked on last
             self.follow(latest, reports[latest].sheet, None)
@@ -472,7 +474,8 @@ class Conductor:
         except Exception as e:
             report_failure(e)
 
-    def accent(self, health, way):
+    def accent(self, health, way, lines=()):
+        """Play an accent made of the `lines` that changed."""
         if self.queued_accents >= 6:
             return  # a flood of changes; the ones already queued tell the story
         self.queued_accents += 1
@@ -481,7 +484,7 @@ class Conductor:
         def job():
             try:
                 volume = self.volume('volume', 0.5)
-                path = music.accent_file(library, stage, way, volume, cache_dir())
+                path = music.accent_file(library, stage, way, volume, cache_dir(), lines)
                 wait = self.next_accent - time.monotonic()
                 if wait > 0:
                     time.sleep(wait)
