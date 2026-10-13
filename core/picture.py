@@ -45,13 +45,13 @@ def timeline(history, changes, now, span, width, height, bands, background):
     of (time, health), over faint bands of (lowest health, color), with a
     tick along the bottom for each of `changes`, a list of (time, color)."""
     canvas = Canvas(width, height, background)
-    floor = 0.0
-    for threshold, color in sorted(bands):  # from cursed at the bottom up
-        top = height - 1 - int(threshold * (height - 1))
-        bottom = height - int(floor * (height - 1))
+    ordered = sorted(bands)  # each band reaches up to the next one's threshold
+    for i, (threshold, color) in enumerate(ordered):
+        ceiling = ordered[i + 1][0] if i + 1 < len(ordered) else 1.0
+        top = height - 1 - int(ceiling * (height - 1))
+        bottom = height - 1 - int(threshold * (height - 1))
         faint = tuple((c + 3 * b) // 4 for c, b in zip(color, background))
-        canvas.rect(0, top, width, bottom - top, faint)
-        floor = threshold
+        canvas.rect(0, top, width, bottom - top + 1, faint)
 
     def x_of(t):
         return int((t - (now - span)) / span * (width - 1))

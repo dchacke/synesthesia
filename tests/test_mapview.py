@@ -39,6 +39,18 @@ class PictureTest(unittest.TestCase):
         self.assertTrue(base64.b64decode(canvas.data_uri().split(',')[1]).startswith(b'\x89PNG'))
 
 
+    def test_each_band_sits_above_its_threshold(self):
+        bands = [(0.0, (100, 0, 0)), (0.5, (0, 100, 0))]
+        canvas = picture.timeline([], [], now=10, span=10, width=10, height=101, bands=bands,
+                                  background=(0, 0, 0))
+
+        def at(health):
+            i = ((100 - int(health * 100)) * 10 + 5) * 3
+            return tuple(canvas.pixels[i:i + 3])
+        self.assertEqual(at(0.95), (0, 25, 0))  # the upper band, all the way to the top
+        self.assertEqual(at(0.25), (25, 0, 0))  # the lower band
+
+
 class MapTest(unittest.TestCase):
     files = {'/p/a.py': report(1.0, 100), '/p/lib/b.py': report(0.2, 50, bugs=2),
              '/p/lib/c.py': report(0.7, 10)}
