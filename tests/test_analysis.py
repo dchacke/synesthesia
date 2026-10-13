@@ -42,6 +42,18 @@ class BracketTest(unittest.TestCase):
         self.assertEqual(analysis.unbalanced_brackets('f(a[1)'), 1)
 
 
+class IndentUnitTest(unittest.TestCase):
+    def test_detects_the_step(self):
+        self.assertEqual(analysis.indent_unit(CLEAN), 4)
+        self.assertEqual(analysis.indent_unit('class A\n  def b\n    c\n  end\nend\n'), 2)
+
+    def test_ignores_alignment_and_falls_back(self):
+        aligned = 'def f():\n    x = g(a,\n          b)\n    return x\n'
+        self.assertEqual(analysis.indent_unit(aligned), 4)
+        self.assertEqual(analysis.indent_unit('if x:\n\ty\n', default=8), 8)
+        self.assertEqual(analysis.indent_unit('x = 1\n', default=3), 3)
+
+
 class FunctionExtentTest(unittest.TestCase):
     def test_indented_block_with_closing_line(self):
         lines = ['function f() {', '  a();', '', '  b();', '}', '', 'g();']

@@ -123,7 +123,7 @@ def parses(view, text):
     return None
 
 
-def measure(view):
+def measure(view, tab_size=None):
     s = settings()
     text = view.substr(sublime.Region(0, view.size()))
 
@@ -134,7 +134,7 @@ def measure(view):
     code = analysis.mask(text, [(r.begin(), r.end()) for r in ignored])
     errors = lines(s.get('error_selector', 'invalid - invalid.deprecated'))
     functions = lines(s.get('function_selector', 'entity.name.function'))
-    tab_size = view.settings().get('tab_size', 4)
+    tab_size = tab_size or view.settings().get('tab_size', 4)
     report = analysis.examine(
         text,
         code=code,
@@ -181,7 +181,7 @@ def measure_hidden(window, path, text):
     if panel.syntax() != syntax:
         panel.assign_syntax(syntax)
     panel.run_command('synesthesia_fill', {'text': text})
-    return measure(panel)
+    return measure(panel, analysis.indent_unit(text, panel.settings().get('tab_size', 4)))
 
 
 def modified(path):

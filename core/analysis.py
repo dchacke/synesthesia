@@ -12,6 +12,7 @@ Nothing in here imports sublime, so it runs under any Python.
 
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 CLOSERS = {')': '(', ']': '[', '}': '{'}
@@ -114,6 +115,26 @@ def function_extents(code_lines, starts, tab_size):
             end -= 1  # trailing blank lines belong to nobody
         extents.append((start, end))
     return extents
+
+
+def indent_unit(text, default=4):
+    """The indentation step `text` uses, judged by how far its lines indent
+    past the line before. Files that aren't open in a view need this, since
+    Sublime only detects indentation when it opens a file. Returns `default`
+    for tab-indented or barely indented text."""
+    steps = Counter()
+    previous = 0
+    for line in text.split('\n'):
+        if not line.strip():
+            continue
+        if line.startswith('\t'):
+            return default
+        width = len(line) - len(line.lstrip(' '))
+        if width > previous:
+            steps[width - previous] += 1
+        previous = width
+    usual = {step: n for step, n in steps.items() if step in (2, 3, 4, 8)}
+    return max(usual, key=lambda step: (usual[step], -step)) if usual else default
 
 
 def indentation(line, tab_size):

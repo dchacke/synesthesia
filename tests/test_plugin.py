@@ -416,6 +416,15 @@ class ProjectTest(unittest.TestCase):
         self.assertEqual(self.accents, ['down'])
         self.assertEqual(self.conductor.report.bugs, 1)
 
+    def test_closed_files_are_measured_with_their_own_indentation(self):
+        self.wait_for(lambda: self.conductor.report is not None)
+        self.window.panel = None
+        deep = 'def f():\n' + ''.join('    ' * (d + 1) + 'if x:\n' for d in range(3)) + '    ' * 4 + 'y\n'
+        panel = self.window.create_output_panel('synesthesia')
+        panel._settings['tab_size'] = 2  # as when someone's default is 2
+        self.assertEqual(PLUGIN.measure_hidden(self.window, 'deep.py', deep).deep_lines, 0)
+        self.assertEqual(PLUGIN.measure(panel).deep_lines, 2)  # what tab size 2 would have said
+
     def test_hears_unsaved_edits_to_project_files(self):
         self.wait_for(lambda: self.conductor.watcher.ready)
         self.conductor.listen(View('def f():\n    return g(1\n', path=self.path, window=self.window))
