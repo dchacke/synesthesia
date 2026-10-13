@@ -1,0 +1,16 @@
+[
+    { "caption": "Synesthesia: Toggle", "command": "synesthesia_toggle" },
+    { "caption": "Synesthesia: Ambient Mode", "command": "synesthesia_mode", "args": { "mode": "ambient" } },
+    { "caption": "Synesthesia: Chime Mode", "command": "synesthesia_mode", "args": { "mode": "chime" } },
+    { "caption": "Synesthesia: Play Now", "command": "synesthesia_play" },
+    { "caption": "Synesthesia: Explain Score", "command": "synesthesia_explain" },
+    { "caption": "Synesthesia: Play All Moods", "command": "synesthesia_demo" },
+    {
+        "caption": "Preferences: Synesthesia Settings",
+        "command": "edit_settings",
+        "args": {
+            "base_file": "${packages}/Synesthesia/Synesthesia.sublime-settings",
+            "default": "{\n\t$0\n}\n"
+        }
+    }
+]

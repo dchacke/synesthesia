@@ -1,0 +1,43 @@
+{
+    // Master switch. "Synesthesia: Toggle" flips it.
+    "enabled": true,
+
+    // "ambient": a continuous drone that follows the health of the file you
+    //            are looking at, crossfading as it changes.
+    // "chime":   a short phrase whenever the health changes (after you pause
+    //            typing or switch files) and whenever you save.
+    "mode": "ambient",
+
+    // Loudness from 0.0 to 1.0, for chimes and for the ambient drone.
+    "volume": 0.5,
+    "ambient_volume": 0.25,
+
+    // Milliseconds to wait after the last keystroke before listening again.
+    "idle_delay": 1000,
+
+    // Views to listen to. Anything else (prose, panels) is ignored, and the
+    // sound keeps describing the last code you looked at.
+    "selector": "source",
+
+    // Scopes that count as bugs. Syntax definitions mark code they cannot
+    // parse as "invalid".
+    "error_selector": "invalid - invalid.deprecated",
+
+    // Whether unbalanced brackets count as bugs, and which scopes to skip
+    // when checking.
+    "check_brackets": true,
+    "ignore_selector": "string, comment",
+
+    // Lines longer than this count as messy. null means the view's widest
+    // ruler, or 100 if it has none.
+    "max_line_length": null,
+
+    // Lines indented more than this many levels count as messy.
+    "max_nesting": 4,
+
+    // Show the mood in the status bar.
+    "show_status": true,
+
+    // Files with more characters than this are ignored.
+    "max_file_size": 2000000
+}
