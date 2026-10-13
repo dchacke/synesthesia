@@ -7,8 +7,8 @@ recorded instruments, so every file has its own melody, and when the code
 changes the music jumps to where it changed. How good the code is decides
 how the music sounds: beautiful code is a harp over a cello section; worse
 code moves to marimba, then piano in a minor key, then tubular bells and a
-droning contrabass, until cursed code is gongs, bowed cymbals and grinding
-clusters. Changes also get a short accent: rising if things got better,
+droning contrabass, until cursed code is a singing saw sliding over
+trembling strings, gongs and bowed cymbals. Changes also get a short accent: rising if things got better,
 falling if they got worse.
 
 ## Stages
@@ -21,7 +21,7 @@ falling if they got worse.
 | 0.45–0.60 | meh       | piano in minor, cello section                               |
 | 0.30–0.45 | bad       | sparse piano in Phrygian, tubular bells, sustained bass     |
 | 0.15–0.30 | awful     | detuned piano clusters, tubular bells, cello tremolo, timpani |
-| 0.00–0.15 | cursed    | clusters, bowed cymbal, gongs, contrabass tremolo           |
+| 0.00–0.15 | cursed    | a singing saw over contrabass tremolo, gongs, bowed cymbal  |
 
 As things get worse the tempo slows, the timing loosens, notes drop out,
 the tuning drifts and the room grows from a small hall into a cavern.
@@ -40,7 +40,8 @@ that hasn't changed costs nothing to play again.
 
 The instruments are real recordings from
 [VSCO 2 Community Edition](https://versilian-studios.com/vsco-community/),
-which is public domain; see [samples/README.md](samples/README.md).
+which is public domain; see [samples/README.md](samples/README.md). The
+singing saw, an almost pure tone, is synthesized.
 
 ## How code is judged
 

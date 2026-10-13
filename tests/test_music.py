@@ -56,6 +56,20 @@ class ArrangeTest(unittest.TestCase):
     def test_identical_code_sounds_identical(self):
         self.assertEqual(music.arrange(SHEET, 2, 4), music.arrange(list(SHEET), 2, 4))
 
+    def test_cursed_code_gets_a_singing_saw(self):
+        saws = [e for e in music.arrange(SHEET * 2, 0, 6)[0] if e.instrument == 'saw']
+        self.assertEqual(len(saws), 1)
+        points = saws[0].sample
+        self.assertLess(points[-1][1], points[-2][1])  # it sighs down at the end
+        self.assertFalse([e for e in music.arrange(SHEET, 0, 5)[0] if e.instrument == 'saw'])
+
+    def test_singing_saw(self):
+        x = music.singing_saw(((0.0, 600.0), (0.5, 800.0)), 1.5)
+        self.assertEqual(len(x), int(1.5 * music.RATE))
+        self.assertEqual(x[0], 0.0)  # bowed in from silence
+        self.assertLess(abs(x[-1]), 0.01)  # and out again
+        self.assertLess(max(map(abs, x)), 1.2)
+
     def test_empty_code_still_has_a_bass(self):
         events, _ = music.arrange([], 0, 3)
         self.assertEqual(len(events), 1)

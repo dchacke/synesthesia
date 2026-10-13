@@ -10,6 +10,7 @@ hasn't changed costs nothing to play again.
 import hashlib
 import math
 import os
+import random
 import struct
 import sys
 import tempfile
@@ -18,39 +19,40 @@ from collections import namedtuple
 
 from .sampler import RATE
 
-VERSION = 3  # part of every cache key; bump when the music changes
+VERSION = 4  # part of every cache key; bump when the music changes
 D3 = 146.83
 STEPS = 8  # lines per bar
 MAX_CACHED_BARS = 400
 
 # melody, comment and function are (instrument, semitones above D3); bass is
 # (instrument, roots to alternate between, seconds, loudness). Unpitched
-# sounds name a recording instead of semitones. room is (wet, size).
+# sounds name a recording instead of semitones. room is (wet, size). saw
+# adds a singing saw sliding between notes above everything else.
 Stage = namedtuple('Stage', 'threshold name scale step melody comment bass function broken '
-                            'room detune jitter density cluster')
+                            'room detune jitter density cluster saw')
 
 STAGES = (
     Stage(0.90, 'beautiful', (0, 2, 4, 7, 9), 0.26, ('harp', 0), ('glock', 24),
           ('cello', (0, 7), 4.5, 0.25), ('bass_pizz', -12), ('bells', 12),
-          (0.2, 0.75), 0, 0.008, 1.0, False),
+          (0.2, 0.75), 0, 0.008, 1.0, False, False),
     Stage(0.75, 'good', (0, 2, 4, 5, 7, 9, 11), 0.3, ('harp', 0), ('glock', 24),
           ('bass_pizz', (-12, -17), 2.5, 0.45), ('bass_pizz', -12), ('bells', 12),
-          (0.2, 0.75), 0, 0.01, 1.0, False),
+          (0.2, 0.75), 0, 0.01, 1.0, False, False),
     Stage(0.60, 'decent', (0, 2, 5, 7, 10), 0.33, ('marimba', 0), ('marimba', 12),
           ('bass_pizz', (-12, -14), 2.5, 0.45), ('bass_pizz', -12), ('bells', 12),
-          (0.14, 0.65), 0, 0.012, 1.0, False),
+          (0.14, 0.65), 0, 0.012, 1.0, False, False),
     Stage(0.45, 'meh', (0, 2, 3, 5, 7, 8, 10), 0.42, ('piano', 0), ('piano', 12),
           ('cello', (0, -2), 4.5, 0.28), ('bass_pizz', -12), ('bells', 12),
-          (0.26, 0.8), 0, 0.02, 0.85, False),
+          (0.26, 0.8), 0, 0.02, 0.85, False, False),
     Stage(0.30, 'bad', (0, 1, 3, 5, 7, 8, 10), 0.5, ('piano', 0), ('bells', 12),
           ('bass_sustain', (-12,), 5.0, 0.35), ('bells', 12), ('gong', 'gongscrape_pp'),
-          (0.34, 0.85), 8, 0.04, 0.7, False),
+          (0.34, 0.85), 8, 0.04, 0.7, False, False),
     Stage(0.15, 'awful', (0, 1, 3, 4, 6, 7, 9, 10), 0.55, ('piano', 0), ('bells', 12),
           ('cello_tremolo', (0, 6), 4.0, 0.4), ('timpani', 'Timpani1_Roll'), ('gong', 'gongscrape_pp'),
-          (0.42, 0.87), 22, 0.07, 0.6, True),
+          (0.42, 0.87), 22, 0.07, 0.6, True, False),
     Stage(0.00, 'cursed', (0, 1, 6, 7, 11), 0.65, ('piano', 0), ('cymbal', 'susCymb1-bow-2'),
           ('bass_tremolo', (-12, -11), 4.0, 0.45), ('gong', 'gongHit_p'), ('gong', 'gongscrape_mf'),
-          (0.5, 0.9), 40, 0.12, 0.5, True),
+          (0.5, 0.9), 40, 0.12, 0.5, True, True),
 )
 
 
@@ -119,7 +121,26 @@ def arrange(sheet, cursor, index):
         if line.broken:
             events.append(_sound(s.broken, time, 0.7, -pan, 1, cents, 3.0, line.key))
             events.append(_sound(s.broken, time + 0.03, 0.6, pan, 6, -cents, 3.0, line.key >> 1))
+    if s.saw:
+        events.extend(_saw(s, lines))
     return events, STEPS * s.step
+
+
+def _saw(s, lines):
+    """The singing saw's part: every other line it slides to a new note high
+    above the rest, and at the end of the bar it sighs down a fifth."""
+    points = []
+    for k, line in enumerate(lines):
+        if line and line.kind != 'blank' and line.key % 2 == 0:
+            note = 19 + degree(s.scale, (line.depth + line.key) % (2 * len(s.scale)))
+            points.append((k * s.step, pitch(note, _spread(line.key >> 9, s.detune))))
+    if not points:
+        return []
+    start, last = points[0][0], points[-1][1]
+    points.append((STEPS * s.step - 0.4, last * 2 ** (-7 / 12)))
+    shape = tuple((round(t - start, 3), round(f, 2)) for t, f in points)
+    return [Event(start, 'saw', None, shape, 1.0, 0.45, _spread(lines[0].key if lines[0] else 0, 0.5),
+                  STEPS * s.step - start + 1.2)]
 
 
 def accent_events(index, direction):
@@ -137,11 +158,56 @@ def accent_events(index, direction):
     return events
 
 
+def singing_saw(points, seconds):
+    """A saw bowed like a violin: an almost pure tone that slides from note to
+    note, with a slow vibrato that widens as each note is held, swelling in
+    with the bow, dipping when the bow changes direction, and wavering
+    slightly with the pressure. `points` lists (seconds, Hz) to slide to."""
+    rng = random.Random(repr(points))
+    n = int(seconds * RATE)
+    out = [0.0] * n
+    sin, cos = math.sin, math.cos
+    phase = 0.0
+    freq = points[0][1]
+    target = 0
+    since = 0.0  # seconds since the current note began
+    pressure = 1.0
+    wobble = rng.uniform(0, 2 * math.pi)
+    level = 0.0
+    block = 32
+    for start in range(0, n, block):
+        t = start / RATE
+        while target + 1 < len(points) and t >= points[target + 1][0]:
+            target += 1
+            since = 0.0
+        since += block / RATE
+        goal = points[target][1]
+        freq *= (goal / freq) ** min(1.0, block / RATE / 0.3)  # the slide
+        depth = 70 * min(1.0, since / 0.6)  # cents, widening as the note is held
+        rate = 5.2 + 0.6 * sin(0.7 * t + wobble)
+        bent = freq * 2 ** (depth / 1200 * sin(2 * math.pi * rate * t))
+        pressure += 0.2 * (1 + 0.04 * rng.uniform(-1, 1) - pressure)
+        swell = min(1.0, t / 0.4) * min(1.0, max(0.0, seconds - t) / 0.8)
+        dip = 1 - 0.35 * max(0.0, 1 - since / 0.25)  # the bow changing direction
+        goal_level = swell * dip * pressure
+        step = (goal_level - level) / block
+        inc = 2 * math.pi * bent / RATE
+        for i in range(start, min(start + block, n)):
+            x = sin(phase)
+            out[i] = level * x * (1 + 0.12 * cos(phase) + 0.03 * (3 - 4 * x * x))
+            phase += inc
+            level += step
+    return out
+
+
 def mix(library, events, tail):
     """Stereo floats of `events`, with `tail` seconds of silence for the room."""
     notes = []
     for e in events:
-        samples = library.note(e.instrument, freq=e.freq, name=e.sample, ratio=e.ratio, seconds=e.seconds)
+        if e.instrument == 'saw':
+            samples = singing_saw(e.sample, e.seconds)
+        else:
+            samples = library.note(e.instrument, freq=e.freq, name=e.sample, ratio=e.ratio, seconds=e.seconds)
         notes.append((int(e.time * RATE), samples, e))
     length = max((start + len(samples) for start, samples, _ in notes), default=0) + int(tail * RATE)
     left, right = [0.0] * length, [0.0] * length
