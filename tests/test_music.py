@@ -70,6 +70,10 @@ class ArrangeTest(unittest.TestCase):
         self.assertLess(abs(x[-1]), 0.01)  # and out again
         self.assertLess(max(map(abs, x)), 1.2)
 
+    def test_the_end_of_the_code_trails_off_into_rests(self):
+        events, _ = music.arrange(SHEET, len(SHEET) - 2, 0)
+        self.assertTrue(all(e.time < 2 * music.STAGES[0].step for e in events))
+
     def test_empty_code_still_has_a_bass(self):
         events, _ = music.arrange([], 0, 3)
         self.assertEqual(len(events), 1)

@@ -74,9 +74,10 @@ went into the current score, and the status bar shows the stage.
 - **file** (default): the file you are looking at, as you type.
 - **project**: every source file in the window's folders, as it changes on
   disk. Made for coding agents: you don't need to look at any file to hear
-  the agent work. Each file it writes plays an accent in that file's stage,
-  rising or falling with the change, and the music moves to that file,
-  starting where it changed. The stage follows the whole project: quality
+  the agent work. The music walks through every file in the project, one
+  after another. Each file the agent writes plays an accent in that file's
+  stage, rising or falling with the change, and the music jumps to where it
+  changed, then walks on from there. The stage follows the whole project: quality
   averaged by file size, with every bug in every file counted. Synesthesia
   checks for changes twice a second and skips whatever git ignores.
 

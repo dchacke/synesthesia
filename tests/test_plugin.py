@@ -238,6 +238,30 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(band.next_bar()[1], 1)  # two lines of lead-in
         self.assertIs(band.next_bar()[0], self.conductor.sheet)
 
+    def test_band_walks_through_the_project_file_by_file(self):
+        a, b = report(1.0), report(1.0)
+        a.sheet, b.sheet = ['a1', 'a2'], ['b1']
+        self.conductor.watcher = mock.Mock()
+        self.conductor.project = {'b.py': b, 'a.py': a}
+        self.conductor.follow('a.py', a.sheet, None)
+        self.conductor.report = a
+        band = self.plugin.Band(self.conductor)
+        self.assertEqual(band.next_bar()[:2], (['a1', 'a2'], 0))
+        band.cursor = 8  # past the end of a.py
+        self.assertEqual(band.next_bar()[:2], (['b1'], 0))
+        band.cursor = 8
+        self.assertEqual(band.next_bar()[:2], (['a1', 'a2'], 0))  # and around again
+        self.conductor.watcher = None
+
+    def test_file_mode_goes_back_to_the_top(self):
+        view = View('a = 1\n')
+        self.conductor.listen(view)
+        band = self.plugin.Band(self.conductor)
+        band.next_bar()
+        band.cursor = 8
+        sheet, cursor, _ = band.next_bar()
+        self.assertEqual((sheet, cursor), (self.conductor.sheet, 0))
+
     def test_project_mode_plays_the_file_that_changed(self):
         a, b = report(1.0), report(0.9)
         a.sheet, b.sheet = ['a'], ['b']

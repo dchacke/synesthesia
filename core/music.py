@@ -22,7 +22,7 @@ from .sampler import RATE
 VERSION = 4  # part of every cache key; bump when the music changes
 D3 = 146.83
 STEPS = 8  # lines per bar
-MAX_CACHED_BARS = 400
+MAX_CACHED_BARS = 100  # about 100 MB
 
 # melody, comment and function are (instrument, semitones above D3); bass is
 # (instrument, roots to alternate between, seconds, loudness). Unpitched
@@ -95,10 +95,9 @@ def _sound(spec, time, velocity, pan=0.0, transpose=0, cents=0.0, seconds=3.0, k
 
 def arrange(sheet, cursor, index):
     """The events of one bar: STEPS lines of `sheet` starting at `cursor`,
-    played in stage `index`. Returns (events, seconds)."""
+    played in stage `index`, with rests past its end. Returns (events, seconds)."""
     s = STAGES[index]
-    sheet = sheet or [None]
-    lines = [sheet[(cursor + k) % len(sheet)] for k in range(STEPS)]
+    lines = _lines(sheet, cursor)
     first = next((line.key for line in lines if line), 0)
     instrument, roots, length, level = s.bass
     events = [_sound((instrument, roots[first % len(roots)]), 0.0, level, seconds=length)]
@@ -141,6 +140,13 @@ def _saw(s, lines):
     shape = tuple((round(t - start, 3), round(f, 2)) for t, f in points)
     return [Event(start, 'saw', None, shape, 1.0, 0.45, _spread(lines[0].key if lines[0] else 0, 0.5),
                   STEPS * s.step - start + 1.2)]
+
+
+def _lines(sheet, cursor):
+    """The STEPS lines of a bar starting at `cursor`; None past the end, so
+    that the last bar of a file trails off into rests."""
+    sheet = sheet or []
+    return [sheet[cursor + k] if cursor + k < len(sheet) else None for k in range(STEPS)]
 
 
 def accent_events(index, direction):
@@ -266,7 +272,7 @@ def render(library, events, room):
 def bar_file(library, sheet, cursor, index, volume, directory):
     """Render a bar to a WAV, cached by what's in it. Returns (seconds until
     the next bar, path)."""
-    lines = [sheet[(cursor + k) % len(sheet)] for k in range(STEPS)] if sheet else []
+    lines = _lines(sheet, cursor)
     digest = hashlib.sha1(repr((VERSION, index, lines, round(volume, 2))).encode()).hexdigest()[:16]
     path = os.path.join(directory, 'bars', 'bar-{}-{}.wav'.format(index, digest))
     events, seconds = arrange(lines, 0, index)

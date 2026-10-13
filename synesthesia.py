@@ -182,6 +182,8 @@ class Conductor:
         self.sheet = None  # the code the music plays; see score.py
         self.focus = None  # a line the band should jump to, where the code just changed
         self.playing = None  # the view id or path the sheet comes from
+        self.project = {}  # path -> report, in project mode
+        self.lock = threading.Lock()  # around what's playing, which the band changes too
         self.scores = {}  # view id -> last report, for telling which way a file moved
         self.band = None
         self.watcher = None
@@ -320,6 +322,7 @@ class Conductor:
         if report is None:
             self.status('♪ no source files in this project')
             return
+        self.project = reports
         for path, old, new in changes:
             if new is None:
                 continue  # a deleted file has nothing to say
@@ -337,14 +340,25 @@ class Conductor:
     def follow(self, source, sheet, old_sheet):
         """Play `sheet` from now on, starting where it differs from
         `old_sheet`, or from the top if it comes from somewhere new."""
-        if source != self.playing:
-            self.focus = 0
-        elif old_sheet is not None:
-            changed = score.first_difference(old_sheet, sheet)
-            if changed is not None:
-                self.focus = changed
-        self.playing = source
-        self.sheet = sheet
+        with self.lock:
+            if source != self.playing:
+                self.focus = 0
+            elif old_sheet is not None:
+                changed = score.first_difference(old_sheet, sheet)
+                if changed is not None:
+                    self.focus = changed
+            self.playing = source
+            self.sheet = sheet
+
+    def advance(self):
+        """At the end of a file, move on to the next one in the project. In
+        file mode the band simply goes back to the top."""
+        with self.lock:
+            files = sorted(self.project) if self.watcher is not None else []
+            if files:
+                i = files.index(self.playing) + 1 if self.playing in self.project else 0
+                self.playing = files[i % len(files)]
+                self.sheet = self.project[self.playing].sheet
 
     def hear(self, report, scope=''):
         previous, self.report = self.report, report
@@ -413,9 +427,10 @@ class Conductor:
 
 class Band(threading.Thread):
     """The ambient stream: walks through the code a bar at a time in the
-    current stage, rendering each bar while the one before it plays. When the
-    stage changes the next bar starts right away; when the code changes the
-    band moves to where it changed."""
+    current stage, rendering each bar while the one before it plays, and in
+    project mode on through every file. When the stage changes the next bar
+    starts right away; when the code changes the band moves to where it
+    changed."""
 
     def __init__(self, conductor):
         super().__init__(name='Synesthesia band', daemon=True)
@@ -440,9 +455,10 @@ class Band(threading.Thread):
             return None
         if c.focus is not None:
             self.cursor, c.focus = max(0, c.focus - 2), None  # lead in to the change
-        sheet = c.sheet or []
-        self.cursor %= max(len(sheet), 1)
-        return sheet, self.cursor, music.stage(c.report.health)
+        if self.cursor >= len(c.sheet or []):  # the end of this file
+            c.advance()
+            self.cursor = 0
+        return c.sheet or [], self.cursor, music.stage(c.report.health)
 
     def run(self):
         ready = None  # (sheet, cursor, stage), seconds, path
@@ -460,8 +476,7 @@ class Band(threading.Thread):
                     continue  # the code changed while the bar was rendering
                 self.player.play(ready[2])
                 started, seconds = time.monotonic(), ready[1]
-                sheet, cursor, stage = plan
-                self.cursor = (cursor + music.STEPS) % max(len(sheet), 1)
+                self.cursor = plan[1] + music.STEPS
                 upcoming = self.next_bar()
                 ready = (upcoming,) + self.conductor.bar(*upcoming)
             except Exception as e:
