@@ -6,6 +6,7 @@
     { "caption": "Synesthesia: Chime Mode", "command": "synesthesia_set", "args": { "key": "mode", "value": "chime" } },
     { "caption": "Synesthesia: Play Now", "command": "synesthesia_play" },
     { "caption": "Synesthesia: Explain Score", "command": "synesthesia_explain" },
+    { "caption": "Synesthesia: Show Map", "command": "synesthesia_map" },
     { "caption": "Synesthesia: Play All Stages", "command": "synesthesia_demo" },
     {
         "caption": "Preferences: Synesthesia Settings",

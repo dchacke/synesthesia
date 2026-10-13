@@ -15,6 +15,7 @@
                     { "caption": "-" },
                     { "caption": "Play Now", "command": "synesthesia_play" },
                     { "caption": "Explain Score", "command": "synesthesia_explain" },
+                    { "caption": "Show Map", "command": "synesthesia_map" },
                     { "caption": "Play All Stages", "command": "synesthesia_demo" }
                 ]
             }

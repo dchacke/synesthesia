@@ -13,6 +13,7 @@ import shutil
 import sys
 import threading
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 import sublime
@@ -23,7 +24,7 @@ import sublime_plugin
 for _module in [m for m in sys.modules if m.startswith(__package__ + '.core')]:
     del sys.modules[_module]
 
-from .core import analysis, checker, music, score  # noqa: E402
+from .core import analysis, checker, mapview, music, score  # noqa: E402
 from .core.player import Player  # noqa: E402
 from .core.sampler import Library  # noqa: E402
 from .core.watcher import Watcher  # noqa: E402
@@ -234,6 +235,12 @@ class Conductor:
         self.warmer = ThreadPoolExecutor(max_workers=1)
         self.next_accent = 0.0
         self.queued_accents = 0
+        self.history = deque(maxlen=2000)  # (time, health) whenever it changed
+        self.changes = deque(maxlen=500)  # (time, way) of every change
+        self.activity = {}  # file -> (time it last changed, way)
+        self.files = {}  # view id -> (name, report), in file mode
+        self.map = None  # the map's tab
+        self.map_generation = 0
 
     def configure(self):
         s = settings()
@@ -257,6 +264,8 @@ class Conductor:
 
     def shutdown(self):
         self.stop_watching()
+        if self.map is not None and self.map.window() is not None:
+            self.map.close()  # a reloaded plugin starts a map of its own
         if self.band is not None:
             self.band.stop()
         self.accent_player.stop()
@@ -290,6 +299,11 @@ class Conductor:
         report = measure(view)
         previous = self.scores.get(view.id())
         self.scores[view.id()] = report
+        name = view.file_name() or view.name() or 'untitled'
+        self.files[view.id()] = (name, report)
+        edited = previous is not None and previous.sheet != report.sheet
+        if edited:
+            self.record(name, direction(previous.health, report.health))
         if settings().get('show_status', True):
             view.set_status(STATUS_KEY, describe(report))
         if previous is not None and (saved or abs(report.health - previous.health) >= 0.02):
@@ -300,6 +314,7 @@ class Conductor:
 
     def forget(self, view):
         self.scores.pop(view.id(), None)
+        self.files.pop(view.id(), None)
         watcher = self.watcher
         if watcher is not None and view.file_name() and view.is_dirty():
             watcher.refresh(view.file_name())  # its unsaved edits are gone
@@ -420,9 +435,10 @@ class Conductor:
             if new is None:
                 continue  # a deleted file has nothing to say
             self.follow(path, new.sheet, old.sheet if old else None)
+            way = direction(old.health, new.health) if old else 'same'
+            self.record(path, way)
             if edited and old is not None and abs(new.health - old.health) < 0.02:
                 continue
-            way = direction(old.health, new.health) if old else 'same'
             self.accent(new.health, way, score.changed_lines(old.sheet if old else None, new.sheet))
         if self.playing not in reports:  # at first, or when its file is gone
             latest = max(reports, key=modified)  # the file worked on last
@@ -456,6 +472,9 @@ class Conductor:
 
     def hear(self, report, scope=''):
         previous, self.report = self.report, report
+        if not self.history or self.history[-1][1] != report.health:
+            self.history.append((time.time(), report.health))
+        self.refresh_map()
         if scope and settings().get('show_status', True):
             self.status(describe(report, scope))
         stage = music.stage(report.health)
@@ -465,6 +484,50 @@ class Conductor:
             self.band.hurry()
         elif previous is not None and settings().get('enabled', True):
             self.renderer.submit(self.phrase, stage)
+
+    # The map
+
+    def record(self, name, way):
+        """Note a change, to light up its tile and tick the timeline."""
+        now = time.time()
+        self.activity[name] = (now, way)
+        self.changes.append((now, way))
+
+    def show_map(self, window):
+        if self.map is not None and self.map.window() is not None:
+            self.map.window().focus_sheet(self.map)
+            return
+        self.map = window.new_html_sheet('Synesthesia', self.map_html())
+        self.map_generation += 1
+        generation = self.map_generation
+        sublime.set_timeout_async(lambda: self.tick(generation), 1000)
+
+    def map_html(self):
+        entry = self.watchers.get(self.window_id)
+        if entry is not None:
+            files, folders = self.project, entry[1]
+        else:
+            files, folders = dict(self.files.values()), ()
+        health = self.report.health if self.report else None
+        return mapview.render(files, health, self.activity, list(self.history),
+                              list(self.changes), time.time(), folders)
+
+    def refresh_map(self):
+        if self.map is not None and self.map.window() is None:
+            self.map = None  # its tab was closed
+        if self.map is not None:
+            self.map.set_contents(self.map_html())
+
+    def tick(self, generation):
+        """Keep the map moving: every second while a change is fading, so
+        it fades smoothly, and every five seconds otherwise, for the timeline."""
+        if generation != self.map_generation:
+            return
+        self.refresh_map()
+        if self.map is None:
+            return
+        recent = any(time.time() - t < mapview.FADE for t, _ in list(self.activity.values()))
+        sublime.set_timeout_async(lambda: self.tick(generation), 1000 if recent else 5000)
 
     def phrase(self, stage):
         """In chime mode, play a bar when the stage changes."""
@@ -720,6 +783,13 @@ def explanation(r, project):
     return '<body><b>{}</b>{} &nbsp;health {:.2f}, quality {:.2f}<br><br>{}</body>'.format(
         html.escape(music.name(r.health)), ' (project)' if project else '', r.health, r.quality,
         '<br>'.join('{}: {}'.format(html.escape(k), v) for k, v in rows))
+
+
+class SynesthesiaMapCommand(sublime_plugin.WindowCommand):
+    """Open the map: every file as a tile colored by its stage."""
+
+    def run(self):
+        conductor.show_map(self.window)
 
 
 class SynesthesiaDemoCommand(sublime_plugin.ApplicationCommand):

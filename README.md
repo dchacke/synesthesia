@@ -88,6 +88,17 @@ the bar. When the window or file it's playing closes, it moves on to
 whatever is open, and when nothing is, it lets the last bar ring out and
 falls silent.
 
+## The map
+
+`Synesthesia: Show Map` opens a tab with a bird's-eye view of the code:
+every file is a tile, grouped by folder, as wide as the file is long and
+colored by its stage. A file that changes lights up and fades over ten
+seconds, so you can watch an agent move through the project; broken files
+carry a ⚠, and clicking a tile opens its file. Above the tiles, a timeline
+shows the last ten minutes of health, with a tick for every change: green
+when it got better, red when it got worse. In file mode the map shows the
+open files.
+
 ## Modes
 
 - **ambient** (default): the code played continuously, plus the accents.
@@ -117,6 +128,7 @@ overlap sounds, so each sound cuts off the one before.
 - `Synesthesia: Ambient Mode` and `Synesthesia: Chime Mode`
 - `Synesthesia: Play Now` plays a bar of the current code
 - `Synesthesia: Explain Score`
+- `Synesthesia: Show Map`
 - `Synesthesia: Play All Stages`
 - `Preferences: Synesthesia Settings`
 

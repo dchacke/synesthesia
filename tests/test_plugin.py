@@ -62,6 +62,9 @@ class View:
     def file_name(self):
         return self.path
 
+    def name(self):
+        return ''
+
     def is_dirty(self):
         return True
 
@@ -149,6 +152,28 @@ class Window:
     def destroy_output_panel(self, name):
         self.panel = None
 
+    def new_html_sheet(self, name, contents):
+        self.sheet = HtmlSheet(self, contents)
+        return self.sheet
+
+    def focus_sheet(self, sheet):
+        self.focused = sheet
+
+
+class HtmlSheet:
+    def __init__(self, window, contents):
+        self._window = window
+        self.contents = contents
+
+    def window(self):
+        return self._window
+
+    def set_contents(self, contents):
+        self.contents = contents
+
+    def close(self):
+        self._window = None
+
 
 def install_fakes(cache):
     sublime = types.ModuleType('sublime')
@@ -159,7 +184,8 @@ def install_fakes(cache):
     sublime.save_settings = lambda name: None
     sublime.status_message = lambda message: None
     sublime.cache_path = lambda: cache
-    sublime.set_timeout_async = lambda callback, delay=0: callback()
+    # Short timers run at once; long ones, like the map's refresh, never come due.
+    sublime.set_timeout_async = lambda callback, delay=0: callback() if delay < 1000 else None
     sublime.window_list = [Window()]  # the active one first
     sublime.windows = lambda: list(sublime.window_list)
     sublime.active_window = lambda: sublime.window_list[0] if sublime.window_list else None
@@ -170,6 +196,11 @@ def install_fakes(cache):
     plugin = types.ModuleType('sublime_plugin')
     plugin.EventListener = object
     plugin.ApplicationCommand = object
+
+    class WindowCommand:
+        def __init__(self, window):
+            self.window = window
+    plugin.WindowCommand = WindowCommand
 
     class TextCommand:
         def __init__(self, view):
@@ -337,6 +368,22 @@ class PluginTest(unittest.TestCase):
         band.cursor = 8
         sheet, cursor, _ = band.next_bar()
         self.assertEqual((sheet, cursor), (self.conductor.sheet, 0))
+
+    def test_the_map_shows_files_and_lights_up_changes(self):
+        window = self.sublime.window_list[0]
+        view = window.open(View('a = 1\n', path='/p/a.py'))
+        self.conductor.listen(view)
+        self.plugin.SynesthesiaMapCommand(window).run()
+        sheet = window.sheet
+        self.assertIn('a.py', sheet.contents)
+        self.assertNotIn('border: 2px solid', sheet.contents)
+        view.text = 'a = (\n'
+        self.conductor.listen(view)
+        self.assertIn('border: 2px solid', sheet.contents)  # just changed
+        self.assertIn('⚠ a.py', sheet.contents)
+        sheet._window = None  # its tab closed
+        self.conductor.listen(view)
+        self.assertIsNone(self.conductor.map)
 
     def test_closing_the_file_moves_on_or_falls_silent(self):
         window = self.sublime.window_list[0]
