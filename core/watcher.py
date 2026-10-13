@@ -52,7 +52,7 @@ class Watcher(threading.Thread):
 
     def __init__(self, folders, wanted, measure, changed, progress=None, failed=None,
                  interval=0.5, exclude=(), max_files=2000, max_bytes=1000000):
-        super().__init__(name='Synesthesia watcher', daemon=True)
+        super().__init__(name='Synesthete watcher', daemon=True)
         self.folders = list(folders)
         self.wanted = wanted
         self.measure = measure

@@ -3,21 +3,21 @@
         "id": "tools",
         "children": [
             {
-                "caption": "Synesthesia",
+                "caption": "Synesthete",
                 "children": [
-                    { "caption": "Enabled", "command": "synesthesia_toggle", "checkbox": true },
+                    { "caption": "Enabled", "command": "synesthete_toggle", "checkbox": true },
                     { "caption": "-" },
-                    { "caption": "Listen to File", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "file" }, "checkbox": true },
-                    { "caption": "Listen to Project", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "project" }, "checkbox": true },
+                    { "caption": "Listen to File", "command": "synesthete_set", "args": { "key": "listen_to", "value": "file" }, "checkbox": true },
+                    { "caption": "Listen to Project", "command": "synesthete_set", "args": { "key": "listen_to", "value": "project" }, "checkbox": true },
                     { "caption": "-" },
-                    { "caption": "Ambient", "command": "synesthesia_set", "args": { "key": "mode", "value": "ambient" }, "checkbox": true },
-                    { "caption": "Chime", "command": "synesthesia_set", "args": { "key": "mode", "value": "chime" }, "checkbox": true },
+                    { "caption": "Ambient", "command": "synesthete_set", "args": { "key": "mode", "value": "ambient" }, "checkbox": true },
+                    { "caption": "Chime", "command": "synesthete_set", "args": { "key": "mode", "value": "chime" }, "checkbox": true },
                     { "caption": "-" },
-                    { "caption": "Play Now", "command": "synesthesia_play" },
-                    { "caption": "Explain Score", "command": "synesthesia_explain" },
-                    { "caption": "Show Map", "command": "synesthesia_map" },
-                    { "caption": "Open Visualizer", "command": "synesthesia_visualizer" },
-                    { "caption": "Play All Stages", "command": "synesthesia_demo" }
+                    { "caption": "Play Now", "command": "synesthete_play" },
+                    { "caption": "Explain Score", "command": "synesthete_explain" },
+                    { "caption": "Show Map", "command": "synesthete_map" },
+                    { "caption": "Open Visualizer", "command": "synesthete_visualizer" },
+                    { "caption": "Play All Stages", "command": "synesthete_demo" }
                 ]
             }
         ]
@@ -30,10 +30,10 @@
                 "id": "package-settings",
                 "children": [
                     {
-                        "caption": "Synesthesia",
+                        "caption": "Synesthete",
                         "command": "edit_settings",
                         "args": {
-                            "base_file": "${packages}/Synesthesia/Synesthesia.sublime-settings",
+                            "base_file": "${packages}/Synesthete/Synesthete.sublime-settings",
                             "default": "{\n\t$0\n}\n"
                         }
                     }

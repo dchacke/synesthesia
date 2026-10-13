@@ -98,7 +98,7 @@ class Panel(View):
     """An output panel: scores files that aren't open."""
 
     def __init__(self):
-        super().__init__('', element='output:synesthesia')
+        super().__init__('', element='output:synesthete')
         self._syntax = None
 
     def syntax(self):
@@ -108,7 +108,7 @@ class Panel(View):
         self._syntax = syntax
 
     def run_command(self, name, args):
-        assert name == 'synesthesia_fill'
+        assert name == 'synesthete_fill'
         self.text = args['text']
 
 
@@ -217,10 +217,10 @@ CACHE = tempfile.TemporaryDirectory()
 SUBLIME = install_fakes(CACHE.name)
 # Load the plugin the way Sublime does: as a module of a package named after
 # the folder the plugin is installed in.
-sys.modules['Synesthesia'] = types.ModuleType('Synesthesia')
-sys.modules['Synesthesia'].__path__ = [ROOT]
-PLUGIN = importlib.import_module('Synesthesia.synesthesia')
-from Synesthesia.core import analysis, score  # noqa: E402
+sys.modules['Synesthete'] = types.ModuleType('Synesthete')
+sys.modules['Synesthete'].__path__ = [ROOT]
+PLUGIN = importlib.import_module('Synesthete.synesthete')
+from Synesthete.core import analysis, score  # noqa: E402
 
 
 def report(health):
@@ -279,7 +279,7 @@ class PluginTest(unittest.TestCase):
     def test_ignores_prose_panels_and_widgets(self):
         self.assertTrue(self.plugin.wants(View('x')))
         self.assertFalse(self.plugin.wants(View('x', scope='text.plain')))
-        self.assertFalse(self.plugin.wants(View('x', element='output:synesthesia')))
+        self.assertFalse(self.plugin.wants(View('x', element='output:synesthete')))
         self.assertFalse(self.plugin.wants(View('x', is_widget=True)))
 
     def test_line_limit_uses_widest_ruler(self):
@@ -307,7 +307,7 @@ class PluginTest(unittest.TestCase):
         self.conductor.listen(view)  # unchanged: silence
         self.conductor.listen(view, saved=True)  # saving always answers
         self.assertEqual(self.accents, ['down', 'up', 'same'])
-        self.assertEqual(view.status['synesthesia'], '♪ beautiful (1.00)')
+        self.assertEqual(view.status['synesthete'], '♪ beautiful (1.00)')
 
     def test_chime_mode_plays_a_phrase_when_the_stage_changes(self):
         self.conductor.hear(report(1.0))
@@ -374,7 +374,7 @@ class PluginTest(unittest.TestCase):
         window = self.sublime.window_list[0]
         view = window.open(View('a = 1\n', path='/p/a.py'))
         self.conductor.listen(view)
-        self.plugin.SynesthesiaMapCommand(window).run()
+        self.plugin.SynestheteMapCommand(window).run()
         sheet = window.sheet
         self.assertIn('a.py', sheet.contents)
         self.assertNotIn('border: 2px solid', sheet.contents)
@@ -434,7 +434,7 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(self.conductor.report.health, 1.0)
 
     def test_toggle(self):
-        command = self.plugin.SynesthesiaToggleCommand()
+        command = self.plugin.SynestheteToggleCommand()
         command.run()
         self.assertFalse(self.sublime.settings['enabled'])
         self.conductor.listen(View('x = (\n'))
@@ -443,7 +443,7 @@ class PluginTest(unittest.TestCase):
         self.assertTrue(command.is_checked())
 
     def test_set_command(self):
-        command = self.plugin.SynesthesiaSetCommand()
+        command = self.plugin.SynestheteSetCommand()
         command.run('listen_to', 'project')
         self.assertTrue(command.is_checked('listen_to', 'project'))
         self.assertFalse(command.is_checked('listen_to', 'file'))
@@ -499,7 +499,7 @@ class ProjectTest(unittest.TestCase):
         self.window.panel = None
         ifs = ''.join('    ' * (d + 1) + 'if x:\n' for d in range(3))
         deep = 'def f():\n' + ifs + '    ' * 4 + 'y\n'
-        panel = self.window.create_output_panel('synesthesia')
+        panel = self.window.create_output_panel('synesthete')
         panel._settings['tab_size'] = 2  # as when someone's default is 2
         self.assertEqual(PLUGIN.measure_hidden(self.window, 'deep.py', deep).deep_lines, 0)
         self.assertEqual(PLUGIN.measure(panel).deep_lines, 2)  # what tab size 2 would have said

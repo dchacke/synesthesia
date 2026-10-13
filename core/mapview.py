@@ -47,7 +47,7 @@ def render(files, health, activity, history, changes, now, folders=()):
     changes: (time, way) for every change, for the timeline's ticks.
     folders: the project's folders, to show names relative to them.
     """
-    parts = ['<body id="synesthesia-map"><style>{}</style>'.format(STYLE)]
+    parts = ['<body id="synesthete-map"><style>{}</style>'.format(STYLE)]
     if health is not None:
         parts.append('<div class="head">{} &nbsp;{:.2f}</div>'.format(
             html.escape(music.name(health)), health))

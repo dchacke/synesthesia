@@ -26,7 +26,7 @@ class Visualizer:
         self.server = ThreadingHTTPServer(('127.0.0.1', port), self._handler())
         self.server.daemon_threads = True
         self.thread = threading.Thread(target=self.server.serve_forever,
-                                       name='Synesthesia visualizer', daemon=True)
+                                       name='Synesthete visualizer', daemon=True)
         self.thread.start()
 
     @property

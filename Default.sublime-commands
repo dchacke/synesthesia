@@ -1,19 +1,19 @@
 [
-    { "caption": "Synesthesia: Toggle", "command": "synesthesia_toggle" },
-    { "caption": "Synesthesia: Listen to File", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "file" } },
-    { "caption": "Synesthesia: Listen to Project", "command": "synesthesia_set", "args": { "key": "listen_to", "value": "project" } },
-    { "caption": "Synesthesia: Ambient Mode", "command": "synesthesia_set", "args": { "key": "mode", "value": "ambient" } },
-    { "caption": "Synesthesia: Chime Mode", "command": "synesthesia_set", "args": { "key": "mode", "value": "chime" } },
-    { "caption": "Synesthesia: Play Now", "command": "synesthesia_play" },
-    { "caption": "Synesthesia: Explain Score", "command": "synesthesia_explain" },
-    { "caption": "Synesthesia: Show Map", "command": "synesthesia_map" },
-    { "caption": "Synesthesia: Open Visualizer", "command": "synesthesia_visualizer" },
-    { "caption": "Synesthesia: Play All Stages", "command": "synesthesia_demo" },
+    { "caption": "Synesthete: Toggle", "command": "synesthete_toggle" },
+    { "caption": "Synesthete: Listen to File", "command": "synesthete_set", "args": { "key": "listen_to", "value": "file" } },
+    { "caption": "Synesthete: Listen to Project", "command": "synesthete_set", "args": { "key": "listen_to", "value": "project" } },
+    { "caption": "Synesthete: Ambient Mode", "command": "synesthete_set", "args": { "key": "mode", "value": "ambient" } },
+    { "caption": "Synesthete: Chime Mode", "command": "synesthete_set", "args": { "key": "mode", "value": "chime" } },
+    { "caption": "Synesthete: Play Now", "command": "synesthete_play" },
+    { "caption": "Synesthete: Explain Score", "command": "synesthete_explain" },
+    { "caption": "Synesthete: Show Map", "command": "synesthete_map" },
+    { "caption": "Synesthete: Open Visualizer", "command": "synesthete_visualizer" },
+    { "caption": "Synesthete: Play All Stages", "command": "synesthete_demo" },
     {
-        "caption": "Preferences: Synesthesia Settings",
+        "caption": "Preferences: Synesthete Settings",
         "command": "edit_settings",
         "args": {
-            "base_file": "${packages}/Synesthesia/Synesthesia.sublime-settings",
+            "base_file": "${packages}/Synesthete/Synesthete.sublime-settings",
             "default": "{\n\t$0\n}\n"
         }
     }

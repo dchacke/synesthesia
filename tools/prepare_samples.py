@@ -1,4 +1,4 @@
-"""Turn recordings from VSCO 2 Community Edition into the samples Synesthesia
+"""Turn recordings from VSCO 2 Community Edition into the samples Synesthete
 ships with: mono, 32 kHz, 16-bit, starting at the onset, trimmed, faded out,
 normalized, and tuned to their measured pitch.
 

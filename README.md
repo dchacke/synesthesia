@@ -1,8 +1,8 @@
-# Synesthesia
+# Synesthete
 
 Hear the state of your code in Sublime Text.
 
-Synesthesia plays your code. The music walks through it line by line on
+Synesthete plays your code. The music walks through it line by line on
 recorded instruments, so every file has its own melody, and when the code
 changes the music jumps to where it changed. How good the code is decides
 how the music sounds: beautiful code is a harp over a cello section; worse
@@ -59,14 +59,14 @@ comments. One bug in beautiful code sounds meh, two bad, three awful, eight
 cursed.
 
 Syntax highlighting misses a lot of broken code, such as a Ruby class
-without its `end`, so Synesthesia also asks the language's own parser:
+without its `end`, so Synesthete also asks the language's own parser:
 `ruby -c`, Python's `ast`, `node --check`, `bash -n` and `php -l`. None of
 them run the code. A file that doesn't parse counts as at least three bugs.
 Add other languages in the `syntax_checkers` setting.
 
 Everything comes from Sublime's own syntax definitions (scopes such as
 `entity.name.function` and `keyword.control.conditional`), so it works for
-any language with a decent syntax. `Synesthesia: Explain Score` shows what
+any language with a decent syntax. `Synesthete: Explain Score` shows what
 went into the current score, and the status bar shows the stage.
 
 ## Listening to a file or a project
@@ -78,19 +78,19 @@ went into the current score, and the status bar shows the stage.
   after another. Each file the agent writes plays an accent in that file's
   stage, rising or falling with the change, and the music jumps to where it
   changed, then walks on from there. The stage follows the whole project: quality
-  averaged by file size, with every bug in every file counted. Synesthesia
+  averaged by file size, with every bug in every file counted. Synesthete
   checks for changes twice a second and skips whatever git ignores.
 
-Switch with `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`.
+Switch with `Synesthete: Listen to File` and `Synesthete: Listen to Project`.
 
-Synesthesia follows you between windows and files, switching at the end of
+Synesthete follows you between windows and files, switching at the end of
 the bar. When the window or file it's playing closes, it moves on to
 whatever is open, and when nothing is, it lets the last bar ring out and
 falls silent.
 
 ## The map
 
-`Synesthesia: Show Map` opens a tab with a bird's-eye view of the code:
+`Synesthete: Show Map` opens a tab with a bird's-eye view of the code:
 every file is a tile, grouped by folder, as wide as the file is long and
 colored by its stage. A file that changes lights up and fades over ten
 seconds, so you can watch an agent move through the project; broken files
@@ -101,7 +101,7 @@ open files.
 
 ## The visualizer
 
-`Synesthesia: Open Visualizer` opens a browser tab where you fly through a
+`Synesthete: Open Visualizer` opens a browser tab where you fly through a
 tunnel made of your code: each file is a band of color around its walls, in
 its stage's color, as wide as the file is long. How healthy the code is
 decides how the flight feels. Beautiful code is a fast, smooth, neon flight
@@ -125,14 +125,17 @@ it prints.
 
 ## Install
 
-Link this folder into Sublime Text's `Packages` folder under the name
-`Synesthesia`. On macOS:
+With [Package Control](https://packagecontrol.io): run `Package Control:
+Install Package` and pick `Synesthete`.
+
+By hand: link this folder into Sublime Text's `Packages` folder under the
+name `Synesthete`. On macOS:
 
 ```bash
-ln -s "$PWD" "$HOME/Library/Application Support/Sublime Text/Packages/Synesthesia"
+ln -s "$PWD" "$HOME/Library/Application Support/Sublime Text/Packages/Synesthete"
 ```
 
-Then run `Synesthesia: Play All Stages` from the command palette to hear the
+Then run `Synesthete: Play All Stages` from the command palette to hear the
 current file in every stage.
 
 Requires Sublime Text 4. Sound is played with `afplay` on macOS and `paplay`,
@@ -141,17 +144,17 @@ overlap sounds, so each sound cuts off the one before.
 
 ## Commands
 
-- `Synesthesia: Toggle` (<kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>)
-- `Synesthesia: Listen to File` and `Synesthesia: Listen to Project`
-- `Synesthesia: Ambient Mode` and `Synesthesia: Chime Mode`
-- `Synesthesia: Play Now` plays a bar of the current code
-- `Synesthesia: Explain Score`
-- `Synesthesia: Show Map`
-- `Synesthesia: Open Visualizer`
-- `Synesthesia: Play All Stages`
-- `Preferences: Synesthesia Settings`
+- `Synesthete: Toggle` (<kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>)
+- `Synesthete: Listen to File` and `Synesthete: Listen to Project`
+- `Synesthete: Ambient Mode` and `Synesthete: Chime Mode`
+- `Synesthete: Play Now` plays a bar of the current code
+- `Synesthete: Explain Score`
+- `Synesthete: Show Map`
+- `Synesthete: Open Visualizer`
+- `Synesthete: Play All Stages`
+- `Preferences: Synesthete Settings`
 
-The same commands are under Tools > Synesthesia.
+The same commands are under Tools > Synesthete.
 
 ## Tests
 

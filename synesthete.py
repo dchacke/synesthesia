@@ -1,4 +1,4 @@
-"""Synesthesia: hear the state of your code.
+"""Synesthete: hear the state of your code.
 
 Scores the current file, or every source file in the open folders, from
 beautiful to cursed, and plays it on recorded instruments. The code is the
@@ -30,10 +30,10 @@ from .core.sampler import Library  # noqa: E402
 from .core.visualizer import Visualizer  # noqa: E402
 from .core.watcher import Watcher  # noqa: E402
 
-SETTINGS = 'Synesthesia.sublime-settings'
-STATUS_KEY = 'synesthesia'
+SETTINGS = 'Synesthete.sublime-settings'
+STATUS_KEY = 'synesthete'
 PACKAGE = os.path.dirname(os.path.abspath(__file__))
-PANEL = 'synesthesia'
+PANEL = 'synesthete'
 SOUND_VERSION = 3  # bump when the music changes, so stale renders are dropped
 ACCENT_GAP = 0.12  # seconds between accents, so a burst of changes cascades
 EARLY_BAR_GAP = 0.8  # when the stage changes, wait at least this long after the last bar
@@ -52,7 +52,7 @@ def settings():
 
 
 def cache_root():
-    return os.path.join(sublime.cache_path(), 'Synesthesia')
+    return os.path.join(sublime.cache_path(), 'Synesthete')
 
 
 def cache_dir():
@@ -93,7 +93,7 @@ def project_mode():
 
 
 def wants(view):
-    """Whether `view` is code Synesthesia should listen to."""
+    """Whether `view` is code Synesthete should listen to."""
     if view is None or not view.is_valid() or view.element() is not None:
         return False
     if view.settings().get('is_widget'):
@@ -121,7 +121,7 @@ def parses(view, text):
             result = checker.parses(entry['command'], text, search_path)
             if result is None and entry['command'][0] not in unrunnable:
                 unrunnable.add(entry['command'][0])
-                print('Synesthesia: could not run {}, so {} files are not checked'.format(
+                print('Synesthete: could not run {}, so {} files are not checked'.format(
                     entry['command'][0], entry['selector']))
             return result
     return None
@@ -193,7 +193,7 @@ def measure_hidden(window, path, text):
     panel.settings().set('is_widget', True)
     if panel.syntax() != syntax:
         panel.assign_syntax(syntax)
-    panel.run_command('synesthesia_fill', {'text': text})
+    panel.run_command('synesthete_fill', {'text': text})
     return measure(panel, analysis.indent_unit(text, panel.settings().get('tab_size', 4)))
 
 
@@ -406,7 +406,7 @@ class Conductor:
             if not edited:  # edits arrive on another thread, which mustn't touch the panel
                 window.destroy_output_panel(PANEL)  # frees its undo history
             if initial:
-                print('Synesthesia: listening to {} source files in {}'.format(
+                print('Synesthete: listening to {} source files in {}'.format(
                     len(reports), ', '.join(folders)))
             if window.id() == self.window_id:  # other projects keep quiet
                 self.hear_project(reports, changes, initial, edited)
@@ -507,7 +507,7 @@ class Conductor:
         if self.map is not None and self.map.window() is not None:
             self.map.window().focus_sheet(self.map)
             return
-        self.map = window.new_html_sheet('Synesthesia', self.map_html())
+        self.map = window.new_html_sheet('Synesthete', self.map_html())
         self.map_generation += 1
         generation = self.map_generation
         sublime.set_timeout_async(lambda: self.tick(generation), 1000)
@@ -627,7 +627,7 @@ class Band(threading.Thread):
     changed."""
 
     def __init__(self, conductor):
-        super().__init__(name='Synesthesia band', daemon=True)
+        super().__init__(name='Synesthete band', daemon=True)
         self.conductor = conductor
         self.player = Player()
         self.stopped = threading.Event()
@@ -684,11 +684,11 @@ class Band(threading.Thread):
 
 
 def report_failure(error):
-    print('Synesthesia:', error)
-    sublime.status_message('Synesthesia: {}'.format(error))
+    print('Synesthete:', error)
+    sublime.status_message('Synesthete: {}'.format(error))
 
 
-class SynesthesiaListener(sublime_plugin.EventListener):
+class SynestheteListener(sublime_plugin.EventListener):
     def __init__(self):
         self.edits = {}
 
@@ -737,26 +737,26 @@ class SynesthesiaListener(sublime_plugin.EventListener):
             conductor.watch(window)  # a different project in the same window
 
 
-class SynesthesiaFillCommand(sublime_plugin.TextCommand):
+class SynestheteFillCommand(sublime_plugin.TextCommand):
     """Replace the whole buffer; used to score files that aren't open."""
 
     def run(self, edit, text):
         self.view.replace(edit, sublime.Region(0, self.view.size()), text)
 
 
-class SynesthesiaToggleCommand(sublime_plugin.ApplicationCommand):
+class SynestheteToggleCommand(sublime_plugin.ApplicationCommand):
     def run(self):
         s = settings()
         s.set('enabled', not s.get('enabled', True))
         sublime.save_settings(SETTINGS)
-        sublime.status_message('Synesthesia {}'.format('on' if s.get('enabled') else 'off'))
+        sublime.status_message('Synesthete {}'.format('on' if s.get('enabled') else 'off'))
 
     def is_checked(self):
         return settings().get('enabled', True)
 
 
-class SynesthesiaSetCommand(sublime_plugin.ApplicationCommand):
-    """Set a setting from the menu or command palette, turning Synesthesia on."""
+class SynestheteSetCommand(sublime_plugin.ApplicationCommand):
+    """Set a setting from the menu or command palette, turning Synesthete on."""
 
     def run(self, key, value):
         s = settings()
@@ -768,14 +768,14 @@ class SynesthesiaSetCommand(sublime_plugin.ApplicationCommand):
         return settings().get(key) == value
 
 
-class SynesthesiaPlayCommand(sublime_plugin.TextCommand):
+class SynesthetePlayCommand(sublime_plugin.TextCommand):
     """Play a bar of the current code right now."""
 
     def run(self, edit):
         report = conductor.report if project_mode() else None
         if report is None:
             if not wants(self.view):
-                sublime.status_message('Synesthesia only listens to views matching "{}"'.format(
+                sublime.status_message('Synesthete only listens to views matching "{}"'.format(
                     settings().get('selector', 'source')))
                 return
             report = measure(self.view)
@@ -784,13 +784,13 @@ class SynesthesiaPlayCommand(sublime_plugin.TextCommand):
         conductor.renderer.submit(conductor.phrase, music.stage(report.health))
 
 
-class SynesthesiaExplainCommand(sublime_plugin.TextCommand):
+class SynestheteExplainCommand(sublime_plugin.TextCommand):
     """Show what went into the score."""
 
     def run(self, edit):
         project = project_mode() and conductor.report is not None
         if not project and not wants(self.view):
-            sublime.status_message('Synesthesia only listens to views matching "{}"'.format(
+            sublime.status_message('Synesthete only listens to views matching "{}"'.format(
                 settings().get('selector', 'source')))
             return
         report = conductor.report if project else measure(self.view)
@@ -819,25 +819,25 @@ def explanation(r, project):
         '<br>'.join('{}: {}'.format(html.escape(k), v) for k, v in rows))
 
 
-class SynesthesiaMapCommand(sublime_plugin.WindowCommand):
+class SynestheteMapCommand(sublime_plugin.WindowCommand):
     """Open the map: every file as a tile colored by its stage."""
 
     def run(self):
         conductor.show_map(self.window)
 
 
-class SynesthesiaVisualizerCommand(sublime_plugin.ApplicationCommand):
+class SynestheteVisualizerCommand(sublime_plugin.ApplicationCommand):
     """Open the visualizer: a tunnel through the code, in the browser."""
 
     def run(self):
         conductor.open_visualizer()
 
 
-class SynesthesiaDemoCommand(sublime_plugin.ApplicationCommand):
+class SynestheteDemoCommand(sublime_plugin.ApplicationCommand):
     """Play the current code in every stage, from beautiful to cursed."""
 
     def run(self):
-        sublime.status_message('Synesthesia: ' + ' → '.join(s.name for s in music.STAGES))
+        sublime.status_message('Synesthete: ' + ' → '.join(s.name for s in music.STAGES))
 
         def tour():
             try:
