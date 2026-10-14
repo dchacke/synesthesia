@@ -143,6 +143,23 @@ Requires Sublime Text 4. Sound is played with `afplay` on macOS and `paplay`,
 `pw-play`, or `aplay` on Linux. On Windows it uses `winsound`, which cannot
 overlap sounds, so each sound cuts off the one before.
 
+## Usage
+
+Synesthete plays as soon as it’s installed:
+
+- Open a code file to hear it change as you type. Open a folder without
+  opening a file to hear the whole project.
+- Working with a coding agent? Run `Synesthete: Listen to Project` to hear
+  every file in the window’s folders as the agent changes them, whichever
+  file you’re looking at.
+- Run `Synesthete: Open Visualizer` to fly through the tunnel, or
+  `Synesthete: Show Map` to see every file at a glance.
+- Run `Synesthete: Explain Score` to see why the code sounds the way it does.
+- If continuous music is too much, `Synesthete: Chime Mode` plays only the
+  accents.
+- `Synesthete: Toggle` turns it off, and it stays off until you turn it on
+  again.
+
 ## Commands
 
 - `Synesthete: Toggle`
