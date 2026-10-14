@@ -123,6 +123,30 @@ class ExamineTest(unittest.TestCase):
         text = 'x = f(a,\n' + ' ' * 22 + 'b)\n'
         self.assertEqual(analysis.examine(text).deep_lines, 0)
 
+    def test_strings_starting_lines_keep_their_indentation(self):
+        # Masked, the string is spaces, which used to count as indentation.
+        text = "def f():\n    g(\n        'a long string, as views hold',\n    )\n"
+        code = analysis.mask(text, [(text.index("'"), text.rindex("'") + 1)])
+        self.assertEqual(analysis.examine(text, code=code, functions=[0]).deep_lines, 0)
+
+    def test_nested_brackets_are_not_nesting(self):
+        hiccdown = ('def page():\n'
+                    + ''.join('    ' * depth + '[div,\n' for depth in range(1, 9))
+                    + '    ' * 9 + "'text'" + ']' * 8 + '\n')
+        self.assertEqual(analysis.examine(hiccdown, functions=[0]).deep_lines, 0)
+
+    def test_blocks_inside_brackets_are_nesting(self):
+        callbacks = ('function f() {\n'
+                     + ''.join('  ' * depth + 'g(() => {\n' for depth in range(1, 8))
+                     + '  ' * 8 + 'x\n'
+                     + ''.join('  ' * depth + '})\n' for depth in range(7, 0, -1)) + '}\n')
+        report = analysis.examine(callbacks, functions=[0], tab_size=2)
+        self.assertEqual(report.deep_lines, 2 + 1 + 2)  # two callbacks, x, two closers
+        blocks = ('def page\n  [:ul,\n    items.map do |item|\n'
+                  '      if item\n        if item.a\n          if item.b\n'
+                  '            if item.c\n              [:li]\n')
+        self.assertEqual(analysis.examine(blocks, functions=[0], tab_size=2).deep_lines, 1)
+
     def test_duplicated_chunks(self):
         chunk = '\n'.join('value_{0} = compute_something(argument_{0})'.format(i) for i in range(4))
         report = analysis.examine(chunk + '\n\n' + chunk + '\n')

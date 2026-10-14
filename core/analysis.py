@@ -171,29 +171,66 @@ def health(quality, bugs):
     return quality / (1 + 0.8 * bugs)
 
 
-def nesting(code_lines, extents, tab_size, limit):
+def continuations(code_lines):
+    """For each line, the lines before it that left a round or square bracket
+    open for it to continue, such as a call's arguments or a nested array
+    (as in views written as arrays, like Hiccdown's). A line counts only if
+    the innermost bracket it leaves open is one of those: a line ending in
+    `{` opens a block, as in `items.forEach((item) => {`."""
+    stack = []  # (bracket, line it opened on)
+    continuing = set()
+    result = []
+
+    def take(char, i):
+        partner = CLOSERS.get(char)
+        if partner is None:
+            stack.append((char, i))
+        elif any(c == partner for c, _ in stack):
+            while stack.pop()[0] != partner:
+                pass
+
+    for i, line in enumerate(code_lines):
+        body = line.lstrip()
+        closing = len(body) - len(body.lstrip(')]}'))
+        for char in body[:closing]:  # a line that starts by closing sits outside
+            take(char, i)
+        result.append({opened for _, opened in stack if opened in continuing})
+        for match in BRACKET_RE.finditer(body, closing):
+            take(match.group(), i)
+        if stack and stack[-1][1] == i and stack[-1][0] in '([':
+            continuing.add(i)
+    return result
+
+
+def nesting(text_lines, code_lines, extents, tab_size, limit):
     """(lines nested deeper than `limit`, how many levels too deep they are
     in all, whether tabs and spaces are mixed). Nesting counts from the
     function a line is in, so the module and class wrapped around it don't
-    make ordinary code look deep."""
+    make ordinary code look deep, and lines continuing an expression inside
+    brackets don't count the brackets' indentation. Indentation comes from
+    the text, since masking a string at the start of a line turns it into
+    spaces; the masked code only tells which lines hold code."""
     base = [0] * len(code_lines)
+    owner = [0] * len(code_lines)  # the line of the function each line is in
     for start, end in sorted(extents):  # inner functions come later and win
-        level = indentation(code_lines[start], tab_size) + tab_size
+        level = indentation(text_lines[start], tab_size) + tab_size
         for i in range(start + 1, end):
             base[i] = level
+            owner[i] = start
     deep = excess = 0
     tabs = spaces = False
-    for line, floor in zip(code_lines, base):
-        stripped = line.lstrip()
-        if not stripped:
+    for line, code, floor, start, open_lines in zip(
+            text_lines, code_lines, base, owner, continuations(code_lines)):
+        if not code.strip():
             continue
-        indent = line[:len(line) - len(stripped)]
+        indent = line[:len(line) - len(line.lstrip())]
         tabs = tabs or '\t' in indent
         spaces = spaces or ('\t' not in indent and len(indent) >= tab_size)
         width = len(indent.expandtabs(tab_size))
         # Lines aligned to an opening bracket rarely land on a tab stop, so
         # only count true indentation levels as nesting.
-        depth = (width - floor) // tab_size
+        brackets = sum(1 for opened in open_lines if opened >= start)
+        depth = (width - floor) // tab_size - brackets
         if width % tab_size == 0 and depth > limit:
             deep += 1
             excess += depth - limit
@@ -251,7 +288,7 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
         broken=int(broken),
     )
     counts['deep_lines'], nesting_excess, counts['mixed_indentation'] = nesting(
-        code_lines, extents, tab_size, limits.nesting)
+        text_lines, code_lines, extents, tab_size, limits.nesting)
     counts['long_functions'], function_excess, counts['complex_functions'], branch_excess = \
         function_smells(text_lines, extents, branches, limits)
     q = quality(counts['lines'], function_excess, branch_excess, nesting_excess,
