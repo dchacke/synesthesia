@@ -99,6 +99,17 @@ class ExamineTest(unittest.TestCase):
         self.assertEqual(report.complex_functions, 1)
         self.assertLess(report.quality, 1.0)
 
+    def test_inner_functions_count_on_their_own(self):
+        body = '\n'.join('        x{} = {}'.format(i, i) for i in range(30))
+        text = ('def outer():\n    def a():\n' + body + '\n    def b():\n' + body
+                + '\n    return a, b\n')
+        a, b = 1, 32
+        report = analysis.examine(text, functions=[0, a, b],
+                                  branches=[a + 1] * 8 + [b + 1] * 8)
+        self.assertEqual(report.long_functions, 0)
+        self.assertEqual(report.complex_functions, 0)
+        self.assertEqual(report.quality, 1.0)
+
     def test_nesting_counts_from_the_enclosing_function(self):
         wrapped = ('module A\n  class B\n    def c\n'
                    '            deep\n'

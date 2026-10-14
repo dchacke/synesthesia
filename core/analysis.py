@@ -202,11 +202,15 @@ def nesting(code_lines, extents, tab_size, limit):
 
 def function_smells(text_lines, extents, branches, limits):
     """(long functions, their lines past the limit, functions with too many
-    branches, their branches past the limit)."""
+    branches, their branches past the limit). Functions defined inside
+    another are judged on their own, so their lines and branches don't count
+    toward the function around them."""
     long_functions = function_excess = complex_functions = branch_excess = 0
     for start, end in extents:
-        length = sum(1 for line in text_lines[start:end] if line.strip())
-        count = sum(1 for b in branches if start <= b < end)
+        inner = {i for s, e in extents if start < s and e <= end for i in range(s, e)}
+        own = [i for i in range(start, end) if i not in inner]
+        length = sum(1 for i in own if text_lines[i].strip())
+        count = sum(1 for b in branches if start <= b < end and b not in inner)
         if length > limits.function_lines:
             long_functions += 1
             function_excess += length - limits.function_lines
