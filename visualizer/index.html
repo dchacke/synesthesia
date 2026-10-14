@@ -16,10 +16,17 @@
   #stage { font-size: 30px; font-weight: 700; letter-spacing: 0.05em; }
   #detail { font-size: 13px; opacity: 0.7; margin-top: 4px; }
   #last { font-size: 15px; margin-top: 10px; transition: opacity 3s; }
+  #missing {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; font: 17px/1.5 -apple-system, system-ui, sans-serif;
+    color: rgba(255, 255, 255, 0.75);
+  }
 </style>
 </head>
 <body>
 <canvas id="screen"></canvas>
+<div id="missing">This browser has WebGL turned off, so it can’t show the tunnel.<br>
+Safari turns it off in Lockdown Mode.</div>
 <div id="hud"><div id="stage">waiting for Synesthete…</div><div id="detail"></div><div id="last"></div></div>
 <script>
 'use strict';
@@ -198,7 +205,7 @@ function compile(type, source) {
 
 function start() {
   if (!gl) {
-    hud.stage.textContent = 'This browser has no WebGL.';
+    document.getElementById('missing').style.display = 'flex';  // the stage still shows below
     return;
   }
   const program = gl.createProgram();
