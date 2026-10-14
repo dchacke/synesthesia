@@ -1,9 +1,13 @@
+import json
 import os
+import re
 import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SETTINGS = os.path.join(ROOT, 'Synesthete.sublime-settings')
+sys.path.insert(0, ROOT)
 
 from core import watcher  # noqa: E402
 
@@ -22,6 +26,16 @@ class ListTest(unittest.TestCase):
             listed = watcher.list_files(root, ['node_modules'])
             found = sorted(os.path.relpath(p, root) for p in listed)
             self.assertEqual(found, ['a.py', os.path.join('lib', 'b.py')])
+
+    def test_skips_lockfiles_by_default(self):
+        with open(SETTINGS) as f:
+            exclude = json.loads(re.sub(r'^\s*//.*$', '', f.read(), flags=re.M))['project_exclude']
+        with tempfile.TemporaryDirectory() as root:
+            for name in ('package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'src/a.js'):
+                write(os.path.join(root, name), '')
+            listed = watcher.list_files(root, exclude)
+            found = sorted(os.path.relpath(p, root) for p in listed)
+            self.assertEqual(found, ['package.json', os.path.join('src', 'a.js')])
 
 
 class WatcherTest(unittest.TestCase):

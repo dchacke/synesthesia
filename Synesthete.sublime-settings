@@ -64,8 +64,10 @@
     "max_file_size": 2000000,
 
     // Project mode: seconds between checks for changed files, how many
-    // files to watch at most, and what to skip besides what git ignores.
+    // files to watch at most, and what to skip besides what git ignores,
+    // like generated lockfiles that would otherwise count as code.
     "poll_interval": 0.5,
     "max_project_files": 2000,
-    "project_exclude": ["node_modules", "vendor", "dist", "build", "target", ".venv", "venv", "__pycache__", "coverage"]
+    "project_exclude": ["node_modules", "vendor", "dist", "build", "target", ".venv", "venv", "__pycache__", "coverage",
+                        "package-lock.json", "npm-shrinkwrap.json"]
 }
