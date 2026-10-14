@@ -120,6 +120,16 @@ answers requests carrying the random token in the page's address. To try it
 without Sublime, run `python3 tools/visualizer_demo.py` and open the address
 it prints.
 
+## The tiles
+
+`Synesthete: Open Tiles` opens a browser tab with every file as a small
+square, grouped by folder like a contribution graph and colored by its
+health, from green for beautiful through yellow and orange to dark red for
+cursed. A file that changes glows and fades over a few seconds, ringed green
+when it got better and red when it got worse; broken files carry a dot.
+Hover a tile to see its file and score. It runs on the visualizer’s server,
+and `python3 tools/visualizer_demo.py` prints its address too.
+
 ## Modes
 
 - **ambient** (default): the code played continuously, plus the accents.
@@ -154,7 +164,8 @@ Synesthete plays as soon as it’s installed:
 - Working with a coding agent? Run `Synesthete: Listen to Project` to hear
   every file in the window’s folders as the agent changes them, whichever
   file you’re looking at.
-- Run `Synesthete: Open Visualizer` to fly through the tunnel, or
+- Run `Synesthete: Open Visualizer` to fly through the tunnel,
+  `Synesthete: Open Tiles` to watch files glow as they change, or
   `Synesthete: Show Map` to see every file at a glance.
 - Run `Synesthete: Explain Score` to see why the code sounds the way it does.
 - If continuous music is too much, `Synesthete: Chime Mode` plays only the
@@ -171,6 +182,7 @@ Synesthete plays as soon as it’s installed:
 - `Synesthete: Explain Score`
 - `Synesthete: Show Map`
 - `Synesthete: Open Visualizer`
+- `Synesthete: Open Tiles`
 - `Synesthete: Play All Stages`
 - `Preferences: Synesthete Settings`
 - `Preferences: Synesthete Key Bindings`

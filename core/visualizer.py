@@ -14,11 +14,12 @@ KEEPALIVE = 15  # seconds between pings, so idle connections stay open
 
 
 class Visualizer:
-    """Serves `page` and broadcasts messages to every open copy of it. The
-    latest 'state' message is replayed to pages that connect later."""
+    """Serves `page` at / and any other `pages` (path -> HTML) beside it,
+    and broadcasts messages to every open copy of them. The latest 'state'
+    message is replayed to pages that connect later."""
 
-    def __init__(self, page, port=0, token=None):
-        self.page = page
+    def __init__(self, page, port=0, token=None, pages=None):
+        self.pages = dict(pages or {}, **{'/': page})
         self.token = token or secrets.token_urlsafe(16)
         self.state = None
         self._clients = set()
@@ -31,7 +32,10 @@ class Visualizer:
 
     @property
     def url(self):
-        return 'http://127.0.0.1:{}/?token={}'.format(self.server.server_address[1], self.token)
+        return self.url_for('/')
+
+    def url_for(self, path):
+        return 'http://127.0.0.1:{}{}?token={}'.format(self.server.server_address[1], path, self.token)
 
     def publish(self, message):
         if message.get('type') == 'state':
@@ -57,15 +61,15 @@ class Visualizer:
                 url = urlparse(self.path)
                 if parse_qs(url.query).get('token') != [visualizer.token]:
                     self.send_error(403)
-                elif url.path == '/':
-                    self._send_page()
+                elif url.path in visualizer.pages:
+                    self._send_page(visualizer.pages[url.path])
                 elif url.path == '/events':
                     self._stream()
                 else:
                     self.send_error(404)
 
-            def _send_page(self):
-                body = visualizer.page.replace('{{TOKEN}}', visualizer.token).encode('utf-8')
+            def _send_page(self, page):
+                body = page.replace('{{TOKEN}}', visualizer.token).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))

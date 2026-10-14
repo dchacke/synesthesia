@@ -8,6 +8,7 @@
     { "caption": "Synesthete: Explain Score", "command": "synesthete_explain" },
     { "caption": "Synesthete: Show Map", "command": "synesthete_map" },
     { "caption": "Synesthete: Open Visualizer", "command": "synesthete_visualizer" },
+    { "caption": "Synesthete: Open Tiles", "command": "synesthete_tiles" },
     { "caption": "Synesthete: Play All Stages", "command": "synesthete_demo" },
     {
         "caption": "Preferences: Synesthete Settings",

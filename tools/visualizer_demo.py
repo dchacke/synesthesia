@@ -21,9 +21,13 @@ FILES = ['app/models/user.rb', 'app/models/post.rb', 'app/controllers/posts_cont
 
 
 def main(port=8765, token='demo'):
-    with open(os.path.join(ROOT, 'visualizer', 'index.html'), encoding='utf-8') as f:
-        visualizer = Visualizer(f.read(), port=int(port), token=token)
+    def page(name):
+        with open(os.path.join(ROOT, 'visualizer', name), encoding='utf-8') as f:
+            return f.read()
+    visualizer = Visualizer(page('index.html'), port=int(port), token=token,
+                            pages={'/tiles': page('tiles.html')})
     print(visualizer.url, flush=True)
+    print(visualizer.url_for('/tiles'), flush=True)
     rng = random.Random(1)
     lines = {name: rng.randint(20, 400) for name in FILES}
     started = time.time()

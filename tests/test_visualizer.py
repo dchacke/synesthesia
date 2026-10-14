@@ -11,7 +11,7 @@ from core.visualizer import Visualizer  # noqa: E402
 
 class VisualizerTest(unittest.TestCase):
     def setUp(self):
-        self.visualizer = Visualizer('<p>{{TOKEN}}</p>')
+        self.visualizer = Visualizer('<p>{{TOKEN}}</p>', pages={'/tiles': '<i>{{TOKEN}}</i>'})
         self.addCleanup(self.visualizer.stop)
         self.port = self.visualizer.server.server_address[1]
         self.token = self.visualizer.token
@@ -28,6 +28,13 @@ class VisualizerTest(unittest.TestCase):
         page = self.get('/?token=' + self.token)
         self.assertEqual(page.read().decode(), '<p>{}</p>'.format(self.token))
         self.assertTrue(self.visualizer.url.endswith('/?token=' + self.token))
+
+    def test_other_pages_sit_beside_it(self):
+        self.assertEqual(self.get('/tiles').status, 403)
+        page = self.get('/tiles?token=' + self.token)
+        self.assertEqual(page.read().decode(), '<i>{}</i>'.format(self.token))
+        self.assertTrue(self.visualizer.url_for('/tiles').endswith('/tiles?token=' + self.token))
+        self.assertEqual(self.get('/nope?token=' + self.token).status, 404)
 
     def test_events_replay_the_state_then_stream(self):
         self.visualizer.publish({'type': 'state', 'health': 0.5})

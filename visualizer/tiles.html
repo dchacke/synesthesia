@@ -1,0 +1,208 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synesthete Tiles</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #0d1117; }
+  body {
+    padding: 32px 40px; box-sizing: border-box;
+    font-family: -apple-system, system-ui, sans-serif; color: rgba(255, 255, 255, 0.88);
+  }
+  #head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  #stage { font-size: 28px; font-weight: 700; letter-spacing: 0.04em; }
+  #detail { font-size: 13px; opacity: 0.6; }
+  #last { font-size: 14px; margin-left: auto; transition: opacity 3s; }
+  #legend { display: flex; align-items: center; gap: 4px; margin: 14px 0 26px; font-size: 12px; opacity: 0.6; }
+  #legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+  #legend span { margin: 0 6px; }
+  #tiles { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px 30px; }
+  .folder { margin-bottom: 7px; font-size: 12px; opacity: 0.55; }
+  .grid { display: flex; flex-wrap: wrap; gap: 4px; max-width: 358px; }
+  .tile {
+    width: 14px; height: 14px; flex: none; border-radius: 3px; position: relative;
+    outline: 1px solid rgba(255, 255, 255, 0.06); outline-offset: -1px;
+    transition: background-color 1.5s;
+  }
+  .tile.broken::after {
+    content: ''; position: absolute; inset: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.75);
+  }
+  .tile:hover { outline: 2px solid rgba(255, 255, 255, 0.7); }
+  #tip {
+    position: fixed; pointer-events: none; padding: 6px 9px; border-radius: 6px; font-size: 12px;
+    background: rgba(22, 27, 34, 0.95); border: 1px solid rgba(255, 255, 255, 0.12); display: none;
+    white-space: nowrap;
+  }
+  #empty { opacity: 0.5; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="head"><div id="stage">waiting for Synesthete…</div><div id="detail"></div><div id="last"></div></div>
+<div id="legend"></div>
+<div id="tiles"><div id="empty">No files yet.</div></div>
+<div id="tip"></div>
+<script>
+'use strict';
+const TOKEN = '{{TOKEN}}';
+const STAGES = ['beautiful', 'good', 'decent', 'meh', 'bad', 'awful', 'cursed'];
+const THRESHOLDS = [0.9, 0.75, 0.6, 0.45, 0.3, 0.15, 0];
+// From cursed (health 0) to beautiful (health 1): dark red, through red,
+// orange and yellow, to green.
+const RAMP = [[0, [90, 8, 12]], [0.15, [150, 20, 24]], [0.3, [214, 48, 39]], [0.45, [240, 120, 30]],
+              [0.6, [236, 196, 40]], [0.75, [150, 200, 60]], [0.9, [57, 211, 83]], [1, [57, 211, 83]]];
+const FLASH = 4;  // seconds a changed file glows
+const GAP = 0.5;  // a tile glows anew at most twice a second
+const WAYS = {up: [120, 255, 150], down: [255, 80, 70], same: [230, 230, 230]};
+
+const el = id => document.getElementById(id);
+const tiles = new Map();  // file name -> {node, file}
+const flashes = new Map();  // file name -> {at, way}
+const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+let state = {health: 1, files: []};
+
+function now() { return performance.now() / 1000; }
+
+function stageOf(health) {
+  const i = THRESHOLDS.findIndex(threshold => health >= threshold);
+  return i < 0 ? STAGES.length - 1 : i;
+}
+
+function colorOf(health) {
+  const h = Math.max(0, Math.min(1, health));
+  let i = 1;
+  while (i < RAMP.length - 1 && h > RAMP[i][0]) i++;
+  const [h0, c0] = RAMP[i - 1], [h1, c1] = RAMP[i];
+  const k = h1 > h0 ? (h - h0) / (h1 - h0) : 0;
+  return c0.map((c, j) => Math.round(c + (c1[j] - c) * k));
+}
+
+const rgb = c => 'rgb(' + c.join(',') + ')';
+
+function folderOf(label) {
+  const i = label.lastIndexOf('/');
+  return i < 0 ? '' : label.slice(0, i);
+}
+
+function legend() {
+  const parts = ['<span>cursed</span>'];
+  for (let i = 0; i <= 10; i++) parts.push('<i style="background:' + rgb(colorOf(i / 10)) + '"></i>');
+  parts.push('<span>beautiful</span>');
+  el('legend').innerHTML = parts.join('');
+}
+
+function render() {
+  const files = state.files.slice().sort((a, b) => (a.label || a.name) < (b.label || b.name) ? -1 : 1);
+  const root = el('tiles');
+  if (!files.length) {
+    root.innerHTML = '<div id="empty">No files yet.</div>';
+    tiles.clear();
+    return;
+  }
+  const groups = new Map();
+  for (const f of files) {
+    const folder = folderOf(f.label || f.name);
+    if (!groups.has(folder)) groups.set(folder, []);
+    groups.get(folder).push(f);
+  }
+  const keep = new Map();
+  root.textContent = '';
+  for (const [folder, group] of groups) {
+    const box = document.createElement('div');
+    const heading = document.createElement('div');
+    heading.className = 'folder';
+    heading.textContent = folder || '.';
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    for (const f of group) {
+      const node = (tiles.get(f.name) || {}).node || document.createElement('div');
+      node.className = 'tile' + (f.broken ? ' broken' : '');
+      node.style.backgroundColor = rgb(colorOf(f.health));
+      node.dataset.name = f.name;
+      grid.appendChild(node);
+      keep.set(f.name, {node, file: f});
+    }
+    box.append(heading, grid);
+    root.appendChild(box);
+  }
+  tiles.clear();
+  keep.forEach((v, k) => tiles.set(k, v));
+}
+
+function showState() {
+  const stage = stageOf(state.health);
+  el('stage').textContent = STAGES[stage];
+  el('stage').style.color = rgb(colorOf(state.health));
+  const broken = state.files.filter(f => f.broken).length;
+  el('detail').textContent = state.health.toFixed(2) + ' · ' + state.files.length + ' files' +
+    (broken ? ' · ' + broken + ' broken' : '');
+}
+
+function handle(message) {
+  if (message.type === 'state') {
+    state = message;
+    render();
+    showState();
+  } else if (message.type === 'change') {
+    const t = now();
+    const previous = flashes.get(message.file);
+    if (!previous || t - previous.at >= GAP) flashes.set(message.file, {at: t, way: message.way});
+    const arrow = {up: '↗', down: '↘', same: '→'}[message.way] || '';
+    const last = el('last');
+    last.textContent = arrow + ' ' + (message.label || message.file);
+    last.style.transition = 'none';
+    last.style.opacity = 1;
+    requestAnimationFrame(() => { last.style.transition = 'opacity 3s'; last.style.opacity = 0; });
+  }
+}
+
+// Each changed tile glows in its own color, ringed green if the change
+// made it better and red if worse, and fades over a few seconds.
+function frame() {
+  const t = now();
+  for (const [name, flash] of flashes) {
+    const tile = tiles.get(name);
+    const since = t - flash.at;
+    if (since > FLASH) {
+      flashes.delete(name);
+      if (tile) { tile.node.style.boxShadow = tile.node.style.transform = tile.node.style.filter = tile.node.style.zIndex = ''; }
+      continue;
+    }
+    if (!tile) continue;
+    const k = Math.pow(1 - since / FLASH, 2);
+    const own = colorOf(tile.file.health), way = WAYS[flash.way] || WAYS.same;
+    tile.node.style.boxShadow =
+      '0 0 ' + (4 + 14 * k).toFixed(1) + 'px ' + (1 + 4 * k).toFixed(1) + 'px rgba(' + own.join(',') + ',' + (0.9 * k).toFixed(2) + '),' +
+      '0 0 0 ' + (2 * k).toFixed(1) + 'px rgba(' + way.join(',') + ',' + k.toFixed(2) + ')';
+    tile.node.style.filter = 'brightness(' + (1 + 0.8 * k).toFixed(2) + ')';
+    tile.node.style.transform = calm.matches ? '' : 'scale(' + (1 + 0.35 * k).toFixed(3) + ')';
+    tile.node.style.zIndex = '1';
+  }
+  requestAnimationFrame(frame);
+}
+
+el('tiles').addEventListener('mousemove', e => {
+  const tip = el('tip');
+  const tile = e.target.classList.contains('tile') && tiles.get(e.target.dataset.name);
+  if (!tile) { tip.style.display = 'none'; return; }
+  const f = tile.file;
+  tip.textContent = (f.label || f.name) + ' · ' + STAGES[stageOf(f.health)] + ' ' + f.health.toFixed(2) +
+    ' · ' + f.lines + ' lines' + (f.broken ? ' · broken' : '');
+  tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+});
+el('tiles').addEventListener('mouseleave', () => { el('tip').style.display = 'none'; });
+
+function connect() {
+  const events = new EventSource('/events?token=' + encodeURIComponent(TOKEN));
+  events.onmessage = e => handle(JSON.parse(e.data));
+  events.onerror = () => { el('detail').textContent = 'reconnecting to Sublime…'; };
+}
+
+legend();
+connect();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

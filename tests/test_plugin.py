@@ -402,6 +402,13 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(sent[0]['way'], 'down')
         self.assertTrue(sent[1]['files'][0]['broken'])
 
+    def test_the_tiles_open_beside_the_tunnel(self):
+        opened = []
+        self.sublime.run_command = lambda name, args=None: opened.append(args['url'])
+        self.conductor.open_visualizer('/tiles')
+        self.assertEqual(opened, [self.conductor.visualizer.url_for('/tiles')])
+        self.assertIn('/tiles', self.conductor.visualizer.pages)
+
     def test_closing_the_file_moves_on_or_falls_silent(self):
         window = self.sublime.window_list[0]
         first = window.open(View('a = 1\n'))

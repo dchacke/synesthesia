@@ -529,12 +529,15 @@ class Conductor:
 
     # The visualizer
 
-    def open_visualizer(self):
+    def open_visualizer(self, path='/'):
+        """Open the tunnel (/) or the tiles (/tiles) in the browser."""
         if self.visualizer is None:
-            with open(os.path.join(PACKAGE, 'visualizer', 'index.html'), encoding='utf-8') as f:
-                self.visualizer = Visualizer(f.read())
+            def page(name):
+                with open(os.path.join(PACKAGE, 'visualizer', name), encoding='utf-8') as f:
+                    return f.read()
+            self.visualizer = Visualizer(page('index.html'), pages={'/tiles': page('tiles.html')})
         self.publish_state()
-        sublime.run_command('open_url', {'url': self.visualizer.url})
+        sublime.run_command('open_url', {'url': self.visualizer.url_for(path)})
 
     def publish_state(self):
         if self.visualizer is None:
@@ -841,6 +844,13 @@ class SynestheteVisualizerCommand(sublime_plugin.ApplicationCommand):
 
     def run(self):
         conductor.open_visualizer()
+
+
+class SynestheteTilesCommand(sublime_plugin.ApplicationCommand):
+    """Open the tiles: every file as a square that glows when it changes, in the browser."""
+
+    def run(self):
+        conductor.open_visualizer('/tiles')
 
 
 class SynestheteDemoCommand(sublime_plugin.ApplicationCommand):
