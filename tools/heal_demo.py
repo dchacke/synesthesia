@@ -1,7 +1,7 @@
 """Fill a folder with a hundred Python files, some mediocre and some
 decent, then heal them all to beautiful one at a time, like an agent working
 through them, so you can watch Synesthete (in project mode, or the tiles)
-follow along. It takes about a minute.
+follow along. It takes about four minutes.
 
 Usage: python3 tools/heal_demo.py FOLDER
 
@@ -14,9 +14,9 @@ import random
 import sys
 import time
 
-# Synesthete checks for changes twice a second, so edits at least this far
-# apart light up one at a time.
-SHORTEST, LONGEST = 0.55, 0.7  # seconds between edits
+# Unhurried: since no gap is shorter than half of three seconds, no three
+# seconds ever hold more than two edits.
+SHORTEST, LONGEST = 1.5, 3.0  # seconds between edits
 PAUSE = 0.03  # how often the agent stops to think, for a second or two
 
 FOLDERS = ['app/models', 'app/services', 'app/views', 'lib', 'lib/parsers', 'lib/storage',
