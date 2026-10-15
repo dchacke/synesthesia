@@ -220,29 +220,40 @@ def nesting(text_lines, code_lines, extents, tab_size, limit):
     make ordinary code look deep, and lines continuing an expression inside
     brackets don't count the brackets' indentation. Indentation comes from
     the text, since masking a string at the start of a line turns it into
-    spaces; the masked code only tells which lines hold code."""
-    base = [0] * len(code_lines)
+    spaces; the masked code only tells which lines hold code.
+
+    A line indented past the one before is one level deeper, however far:
+    a line aligned under an argument or a string 40 columns in continues
+    what's above it rather than nesting 20 levels into it. So levels are
+    counted as Python's tokenizer counts indents, with a stack of the
+    indentations open so far."""
+    floor = [-1] * len(code_lines)  # the indentation of the function a line is in
     owner = [0] * len(code_lines)  # the line of the function each line is in
     for start, end in sorted(extents):  # inner functions come later and win
-        level = indentation(text_lines[start], tab_size) + tab_size
+        level = indentation(text_lines[start], tab_size)
         for i in range(start + 1, end):
-            base[i] = level
+            floor[i] = level
             owner[i] = start
     deep = excess = 0
     tabs = spaces = False
-    for line, code, floor, start, open_lines in zip(
-            text_lines, code_lines, base, owner, continuations(code_lines)):
+    widths = []  # indentations open at the current line, innermost last
+    for line, code, below, start, open_lines in zip(
+            text_lines, code_lines, floor, owner, continuations(code_lines)):
         if not code.strip():
             continue
         indent = line[:len(line) - len(line.lstrip())]
         tabs = tabs or '\t' in indent
         spaces = spaces or ('\t' not in indent and len(indent) >= tab_size)
         width = len(indent.expandtabs(tab_size))
-        # Lines aligned to an opening bracket rarely land on a tab stop, so
-        # only count true indentation levels as nesting.
+        while widths and widths[-1] > width:
+            widths.pop()
+        if not widths or widths[-1] < width:
+            widths.append(width)
+        # Levels inside the function, its body being the first
+        levels = sum(1 for w in widths if w > below) - 1
         brackets = sum(1 for opened in open_lines if opened >= start)
-        depth = (width - floor) // tab_size - brackets
-        if width % tab_size == 0 and depth > limit:
+        depth = levels - brackets
+        if depth > limit:
             deep += 1
             excess += depth - limit
     return deep, excess, tabs and spaces

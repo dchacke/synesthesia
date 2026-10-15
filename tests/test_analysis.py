@@ -147,6 +147,12 @@ class ExamineTest(unittest.TestCase):
                   '            if item.c\n              [:li]\n')
         self.assertEqual(analysis.examine(blocks, functions=[0], tab_size=2).deep_lines, 1)
 
+    def test_aligned_lines_are_one_level_deeper_at_most(self):
+        # Under a string 40 columns in, which used to count as 20 levels
+        text = ('def f\n  if a\n    if b\n      redirect_to path, alert: \'one \' \\\n'
+                + ' ' * 40 + "'two'\n    end\n  end\nend\n")
+        self.assertEqual(analysis.examine(text, functions=[0], tab_size=2).deep_lines, 0)
+
     def test_hash_literals_are_not_nesting(self):
         text = ('def f():\n    g(a,\n' + ''.join('    ' * depth + 'k: {\n' for depth in range(2, 9))
                 + '    ' * 9 + 'x: 1' + '}' * 7 + ')\n')

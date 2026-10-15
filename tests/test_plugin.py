@@ -515,7 +515,8 @@ class ProjectTest(unittest.TestCase):
         panel = self.window.create_output_panel('synesthete')
         panel._settings['tab_size'] = 2  # as when someone's default is 2
         self.assertEqual(PLUGIN.measure_hidden(self.window, 'deep.py', deep).deep_lines, 0)
-        self.assertEqual(PLUGIN.measure(panel).deep_lines, 2)  # what tab size 2 would have said
+        # Nesting counts indentation steps, so a wrong tab size doesn't matter.
+        self.assertEqual(PLUGIN.measure(panel).deep_lines, 0)
 
     def test_hears_unsaved_edits_to_project_files(self):
         self.wait_for(lambda: self.conductor.watcher.ready)
