@@ -1,4 +1,4 @@
-"""Fill a folder with about ninety Python files, some mediocre and some
+"""Fill a folder with a hundred Python files, some mediocre and some
 decent, then heal them all to beautiful one at a time, like an agent working
 through them, so you can watch Synesthete (in project mode, or the tiles)
 follow along. It takes about a minute.
@@ -127,7 +127,7 @@ def untidy(noun, field, state, other):
     return '\n'.join(out)
 
 
-def plan(seed=7, count=90):
+def plan(seed=7, count=100):
     """[(path, start, end)]: each file's first text and its healed one."""
     rng = random.Random(seed)
     files = []
