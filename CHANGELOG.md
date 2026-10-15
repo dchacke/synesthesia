@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0
+## 0.2.0 (2026-10-14)
 
 ### New
 
@@ -27,3 +27,35 @@
 - When WebGL is off, as in Safari’s Lockdown Mode, the visualizer says why
   the tunnel is missing instead of showing a black page.
 - The README explains how to use Synesthete.
+
+## 0.1.2 (2026-10-13)
+
+- In file mode, while no code file is open, Synesthete plays the window’s
+  project, so opening a folder without opening a file plays the project
+  right away instead of nothing. Play Now and Explain Score use it too.
+
+## 0.1.1 (2026-10-13)
+
+- Synesthete no longer binds <kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>,
+  as Package Control asks of packages. The README shows how to bind it
+  yourself, and `Preferences: Synesthete Key Bindings` opens your key
+  bindings next to the package’s.
+- Installs leave out the tests and tools.
+
+## 0.1.0 (2026-10-13)
+
+The first release as a Sublime Text package, rewritten from the 2014 Atom
+package Synesthesia.
+
+- Plays your code line by line on recorded instruments, in seven stages from
+  beautiful to cursed, with a short accent whenever it changes: rising if
+  things got better, falling if they got worse.
+- Scores code from Sublime’s syntax definitions: long and branchy
+  functions, deep nesting, duplication, long lines, untidiness, and bugs,
+  including code the language’s own parser rejects.
+- Listens to the file you’re looking at, or to every file in the project as
+  it changes on disk.
+- Ambient and chime modes, `Synesthete: Explain Score`, and the stage in the
+  status bar.
+- The map, a bird’s-eye view of the code in a Sublime tab, and the
+  visualizer, a tunnel through the code in the browser.
