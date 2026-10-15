@@ -47,10 +47,11 @@ singing saw, an almost pure tone, is synthesized.
 
 **Quality** starts at 1.0 and falls toward 0.3 as smells pile up: functions
 longer than 40 lines, functions with more than 10 branches, code nested more
-than four levels inside its function (lines inside round or square
-brackets, such as arguments or nested arrays, continue an expression
-rather than nest), duplicated chunks, lines longer than
-your widest ruler, trailing whitespace, tabs mixed with spaces, and TODO,
+than four levels inside its function (lines inside brackets, such as
+arguments, nested arrays or hash literals, continue an expression rather
+than nest; blocks still nest), duplicated chunks, lines longer than your
+widest ruler (not counting the text of strings, which can't be wrapped like
+code), trailing whitespace, tabs mixed with spaces, and TODO,
 FIXME, XXX and HACK comments. Smells count in proportion to the file's size,
 so one long function sinks a short file more than a long one. Mess alone
 never drops below bad.

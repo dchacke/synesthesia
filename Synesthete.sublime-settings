@@ -41,8 +41,11 @@
     "max_function_lines": 40,
     "max_branches": 10,
     "max_nesting": 4,
-    // null means the view's widest ruler, or 100 if it has none.
+    // null means the view's widest ruler, or 100 if it has none. The text of
+    // what matches line_length_ignore_selector doesn't count toward a line's
+    // length: prose in a string can't be wrapped like code.
     "max_line_length": null,
+    "line_length_ignore_selector": "string",
 
     // Languages' own parsers, which catch broken code that syntax
     // highlighting misses. Each gets the code on stdin and fails if it
