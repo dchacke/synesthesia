@@ -1,8 +1,9 @@
 """Fill a folder with about ninety Python files, some mediocre and some
-decent, then heal them all to beautiful over about twenty seconds, so you
-can watch Synesthete (in project mode, or the tiles) follow along.
+decent, then heal them all to beautiful one at a time, like an agent working
+through them, so you can watch Synesthete (in project mode, or the tiles)
+follow along. It takes about a minute.
 
-Usage: python3 tools/heal_demo.py FOLDER [seconds]
+Usage: python3 tools/heal_demo.py FOLDER
 
 It asks before healing, so you can open the folder in Sublime first. It
 only writes files it made itself, under FOLDER.
@@ -12,6 +13,11 @@ import os
 import random
 import sys
 import time
+
+# Synesthete checks for changes twice a second, so edits at least this far
+# apart light up one at a time.
+SHORTEST, LONGEST = 0.55, 0.7  # seconds between edits
+PAUSE = 0.03  # how often the agent stops to think, for a second or two
 
 FOLDERS = ['app/models', 'app/services', 'app/views', 'lib', 'lib/parsers', 'lib/storage',
            'scripts', 'tests']
@@ -122,8 +128,7 @@ def untidy(noun, field, state, other):
 
 
 def plan(seed=7, count=90):
-    """[(path, start, steps)]: each file's first text and the texts it heals
-    through, ending clean."""
+    """[(path, start, end)]: each file's first text and its healed one."""
     rng = random.Random(seed)
     files = []
     used = set()
@@ -139,9 +144,9 @@ def plan(seed=7, count=90):
         used.add(path)
         args = (noun, rng.choice(FIELDS), rng.choice(STATES), rng.choice(NOUNS))
         if rng.random() < 0.5:
-            files.append((path, tangled(*args), [untidy(*args), clean(*args)]))  # mediocre
+            files.append((path, tangled(*args), clean(*args)))  # mediocre
         else:
-            files.append((path, untidy(*args), [clean(*args)]))  # decent
+            files.append((path, untidy(*args), clean(*args)))  # decent
     return files
 
 
@@ -152,21 +157,23 @@ def write(root, path, text):
         f.write(text)
 
 
-def main(root, seconds=20):
-    seconds = float(seconds)
+def main(root):
     files = plan()
     for path, start, _ in files:
         write(root, path, start)
     print('Wrote {} files to {}.'.format(len(files), root))
     if sys.stdin.isatty():
         input('Open it in Sublime (Listen to Project, Open Tiles), then press Return to heal… ')
-    remaining = {path: list(steps) for path, _, steps in files}
-    turns = [path for path, steps in remaining.items() for _ in steps]  # one per edit
-    random.Random(11).shuffle(turns)
-    for path in turns:  # files take turns, each healing through its steps in order
-        write(root, path, remaining[path].pop(0))
-        time.sleep(seconds / len(turns))
-    print('Healed {} files in {:.0f} seconds.'.format(len(files), seconds))
+    rng = random.Random(11)
+    rng.shuffle(files)
+    started = time.monotonic()
+    for path, _, end in files:
+        write(root, path, end)
+        gap = rng.uniform(SHORTEST, LONGEST)
+        if rng.random() < PAUSE:
+            gap += rng.uniform(1.0, 2.0)
+        time.sleep(gap)
+    print('Healed {} files in {:.0f} seconds.'.format(len(files), time.monotonic() - started))
 
 
 if __name__ == '__main__':
