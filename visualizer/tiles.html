@@ -52,7 +52,6 @@ const RAMP = [[0, [90, 8, 12]], [0.15, [150, 20, 24]], [0.3, [214, 48, 39]], [0.
 const FLASH = 4;  // seconds a changed file glows
 const GAP = 0.5;  // a tile glows anew at most twice a second
 const CELL = 18;  // px per tile, gap included
-const WIDE = 3;  // the rectangle aims to be about this many times as wide as tall
 const WAYS = {up: [120, 255, 150], down: [255, 80, 70], same: [230, 230, 230]};
 
 const el = id => document.getElementById(id);
@@ -95,10 +94,10 @@ function render() {
     tiles.clear();
     return;
   }
-  // One rectangle, in path order so folders sit together, as wide as it
-  // can be without overflowing the window.
+  // One square, in path order so folders sit together, unless the window
+  // is too narrow for it; then as wide as fits.
   const fit = Math.max(1, Math.floor((root.clientWidth + 4) / CELL));
-  const columns = Math.min(fit, Math.max(1, Math.ceil(Math.sqrt(files.length * WIDE))));
+  const columns = Math.min(fit, Math.max(1, Math.ceil(Math.sqrt(files.length))));
   root.style.gridTemplateColumns = 'repeat(' + columns + ', 14px)';
   const keep = new Map();
   root.textContent = '';
