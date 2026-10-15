@@ -3,12 +3,16 @@ decent, then heal them all to beautiful one at a time, like an agent working
 through them, so you can watch Synesthete (in project mode, or the tiles)
 follow along. It takes about two and a half minutes.
 
-Usage: python3 tools/heal_demo.py FOLDER
+Usage: python3 tools/heal_demo.py FOLDER [--worse] [--seconds N]
+
+--worse starts from much worse code: bad, and broken files that sound
+awful or cursed. --seconds heals everything in about N seconds instead.
 
 It asks before healing, so you can open the folder in Sublime first. It
 only writes files it made itself, under FOLDER.
 """
 
+import argparse
 import os
 import random
 import sys
@@ -68,8 +72,9 @@ class {title}Index:
 '''.format(title=title, noun=noun, field=field, state=state, other=other)
 
 
-def tangled(noun, field, state, other):
-    """What clean() replaces: everything in one function, nested deep."""
+def tangled(noun, field, state, other, copies=1):
+    """What clean() replaces: everything in one function, nested deep, with
+    `copies` of the same checks pasted at the end."""
     pad = '    '
     body = []
     for depth, line in enumerate([
@@ -100,7 +105,7 @@ def tangled(noun, field, state, other):
     ]
     lines = (['"""{title}s."""   ', '', '', '# TODO: split this up', 'def process(rows):   ',
               pad + 'total = 0', pad + 'names = []   ', pad + 'seen = {{}}', pad + 'skipped = 0']
-             + body + duplicate
+             + body + duplicate * copies
              + [pad + '# FIXME: nobody knows what this returns   ',
                 pad + "return {{'total': total, 'names': names, 'seen': seen, 'skipped': skipped, 'kind': '{noun}', 'state': '{state}'}}",
                 '', ''])
@@ -127,7 +132,15 @@ def untidy(noun, field, state, other):
     return '\n'.join(out)
 
 
-def plan(seed=7, count=100):
+def broken(text):
+    """`text` with the bracket that closes its last line gone, so it no
+    longer parses."""
+    lines = text.rstrip('\n').split('\n')
+    lines[-1] = lines[-1][:-1]
+    return '\n'.join(lines) + '\n'
+
+
+def plan(seed=7, count=100, worse=False):
     """[(path, start, end)]: each file's first text and its healed one."""
     rng = random.Random(seed)
     files = []
@@ -143,10 +156,18 @@ def plan(seed=7, count=100):
             continue
         used.add(path)
         args = (noun, rng.choice(FIELDS), rng.choice(STATES), rng.choice(NOUNS))
-        if rng.random() < 0.5:
-            files.append((path, tangled(*args), clean(*args)))  # mediocre
+        pick = rng.random()
+        if worse and pick < 1 / 3:
+            start = tangled(*args, copies=3)  # bad
+        elif worse and pick < 2 / 3:
+            start = broken(untidy(*args))  # awful
+        elif worse:
+            start = broken(tangled(*args, copies=3))  # cursed
+        elif pick < 0.5:
+            start = tangled(*args)  # mediocre
         else:
-            files.append((path, untidy(*args), clean(*args)))  # decent
+            start = untidy(*args)  # decent
+        files.append((path, start, clean(*args)))
     return files
 
 
@@ -157,8 +178,23 @@ def write(root, path, text):
         f.write(text)
 
 
-def main(root):
-    files = plan()
+def gaps(count, rng, seconds=None):
+    """Seconds to wait after each edit: about `seconds` in all, or else the
+    unhurried pace, with now and then a pause."""
+    if seconds is not None:
+        weights = [rng.uniform(0.5, 1.5) for _ in range(count)]
+        return [seconds * w / sum(weights) for w in weights]
+    result = []
+    for _ in range(count):
+        gap = rng.uniform(SHORTEST, LONGEST)
+        if rng.random() < PAUSE:
+            gap += rng.uniform(1.0, 2.0)
+        result.append(gap)
+    return result
+
+
+def main(root, worse=False, seconds=None):
+    files = plan(worse=worse)
     for path, start, _ in files:
         write(root, path, start)
     print('Wrote {} files to {}.'.format(len(files), root))
@@ -167,14 +203,16 @@ def main(root):
     rng = random.Random(11)
     rng.shuffle(files)
     started = time.monotonic()
-    for path, _, end in files:
+    for (path, _, end), gap in zip(files, gaps(len(files), rng, seconds)):
         write(root, path, end)
-        gap = rng.uniform(SHORTEST, LONGEST)
-        if rng.random() < PAUSE:
-            gap += rng.uniform(1.0, 2.0)
         time.sleep(gap)
     print('Healed {} files in {:.0f} seconds.'.format(len(files), time.monotonic() - started))
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:])
+    parser = argparse.ArgumentParser(description='Fill FOLDER with code, then heal it.')
+    parser.add_argument('folder')
+    parser.add_argument('--worse', action='store_true', help='start from much worse code')
+    parser.add_argument('--seconds', type=float, help='heal everything in about this long')
+    args = parser.parse_args()
+    main(args.folder, args.worse, args.seconds)
