@@ -154,13 +154,11 @@ class ExamineTest(unittest.TestCase):
         blocks = 'def f\n' + ''.join('  ' * depth + 'g {\n' for depth in range(1, 8)) + '  ' * 8 + 'x\n'
         self.assertEqual(analysis.examine(blocks, functions=[0], tab_size=2).deep_lines, 3)
 
-    def test_strings_dont_make_lines_long(self):
+    def test_urls_dont_make_lines_long(self):
+        link = "x = link('https://example.com/" + 'a/' * 60 + "')\n"
+        self.assertEqual(analysis.examine(link).long_lines, 0)
         prose = "x = '" + 'word ' * 40 + "'\n"
-        strings = [(prose.index("'"), prose.rindex("'") + 1)]
         self.assertEqual(analysis.examine(prose).long_lines, 1)
-        self.assertEqual(analysis.examine(prose, strings=strings).long_lines, 0)
-        code = 'x = ' + ' + '.join('value_{}'.format(i) for i in range(20)) + " + 'a'\n"
-        self.assertEqual(analysis.examine(code, strings=[(len(code) - 4, len(code) - 1)]).long_lines, 1)
 
     def test_duplicated_chunks(self):
         chunk = '\n'.join('value_{0} = compute_something(argument_{0})'.format(i) for i in range(4))

@@ -24,6 +24,7 @@ BLOCK_END_RE = re.compile(r'^(?:[}\])]|end\b)')
 # block: `f({`, `[{`, `, {`, `key: {`, `x = {`, `return {`. A block's follows
 # a `)`, a keyword or a name, or `=>` in JavaScript.
 LITERAL_BRACE_RE = re.compile(r'(?:[(\[,:=]|\breturn)\s*$')
+URL_RE = re.compile(r'\b[a-z][a-z0-9+.-]*://[^\s\'"`<>)\]]+', re.I)
 DUPLICATE_WINDOW = 4  # consecutive lines that count as a copied chunk
 DUPLICATE_MIN_CHARS = 60  # ignore windows of boilerplate like "}\n}\n"
 BROKEN = 3  # a file that doesn't parse counts as at least this many bugs
@@ -64,9 +65,9 @@ class Report:
         return max(found, BROKEN) if self.broken else found
 
 
-def mask(text, spans, fill=' '):
-    """Blank out spans (string literals, comments) with spaces, or `fill`,
-    keeping newlines so line numbers and indentation survive."""
+def mask(text, spans):
+    """Blank out spans (string literals, comments) with spaces, keeping
+    newlines so line numbers and indentation survive."""
     pieces = []
     last = 0
     for a, b in sorted(spans):
@@ -74,19 +75,15 @@ def mask(text, spans, fill=' '):
         if b <= a:
             continue
         pieces.append(text[last:a])
-        pieces.append(NOT_NEWLINE_RE.sub(fill, text[a:b]))
+        pieces.append(NOT_NEWLINE_RE.sub(' ', text[a:b]))
         last = b
     pieces.append(text[last:])
     return ''.join(pieces)
 
 
-def long_lines(text, strings, tab_size, limit):
-    """Lines longer than `limit` without the text of their string literals
-    (`strings`, spans like mask's). Prose in a string, such as an interface's
-    copy, can't be broken without making it harder to read and to search
-    for, so formatters leave it alone too."""
-    lines = mask(text, strings, '\0').split('\n')
-    return sum(1 for line in lines if len(line.replace('\0', '').expandtabs(tab_size)) > limit)
+def long_lines(lines, tab_size, limit):
+    """Lines longer than `limit` without their URLs, which can't be broken."""
+    return sum(1 for line in lines if len(URL_RE.sub('', line).expandtabs(tab_size)) > limit)
 
 
 def unbalanced_brackets(code):
@@ -272,12 +269,11 @@ def function_smells(text_lines, extents, branches, limits):
 
 
 def examine(text, code=None, comments='', syntax_errors=0, functions=(),
-            branches=(), tab_size=4, limits=None, check_brackets=True, broken=False, strings=()):
+            branches=(), tab_size=4, limits=None, check_brackets=True, broken=False):
     """Score `text`.
 
     code: the same text with strings and comments masked out (see `mask`).
     comments: the comment text, searched for TODOs.
-    strings: spans of string literals, whose text doesn't make a line long.
     syntax_errors: how many spans the editor flagged as invalid.
     functions: line numbers where functions start.
     branches: line numbers of branching keywords (if, for, while, case,
@@ -293,7 +289,7 @@ def examine(text, code=None, comments='', syntax_errors=0, functions=(),
     extents = function_extents(code_lines, functions, tab_size)
     counts = dict(
         lines=sum(1 for line in text_lines if line.strip()),
-        long_lines=long_lines(text, strings, tab_size, limits.line_length),
+        long_lines=long_lines(text_lines, tab_size, limits.line_length),
         trailing_whitespace=sum(1 for line in text_lines if line != line.rstrip()),
         duplicate_lines=duplicate_lines(text_lines),
         unbalanced_brackets=unbalanced_brackets(code) if check_brackets else 0,

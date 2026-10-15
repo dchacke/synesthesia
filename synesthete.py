@@ -145,7 +145,6 @@ def measure(view, tab_size=None):
 
     ignored = view.find_by_selector(s.get('ignore_selector', 'string, comment'))
     code = analysis.mask(text, [(r.begin(), r.end()) for r in ignored])
-    strings = view.find_by_selector(s.get('line_length_ignore_selector', 'string'))
     errors = lines(s.get('error_selector', 'invalid - invalid.deprecated'))
     functions = lines(s.get('function_selector', 'entity.name.function'))
     tab_size = tab_size or view.settings().get('tab_size', 4)
@@ -164,7 +163,6 @@ def measure(view, tab_size=None):
             branches=s.get('max_branches', 10)),
         check_brackets=s.get('check_brackets', True),
         broken=parses(view, text) is False,
-        strings=[(r.begin(), r.end()) for r in strings],
     )
     report.sheet = score.read(text, code, functions, errors, tab_size)
     return report
