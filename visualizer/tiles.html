@@ -17,17 +17,16 @@
   #legend { display: flex; align-items: center; gap: 4px; margin: 14px 0 26px; font-size: 12px; opacity: 0.6; }
   #legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
   #legend span { margin: 0 6px; }
-  #tiles { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px 30px; }
-  .folder { margin-bottom: 7px; font-size: 12px; opacity: 0.55; }
-  .grid { display: flex; flex-wrap: wrap; gap: 4px; max-width: 358px; }
+  #tiles { display: grid; gap: 4px; justify-content: start; }
   .tile {
-    width: 14px; height: 14px; flex: none; border-radius: 3px; position: relative;
+    width: 14px; height: 14px; border-radius: 3px; position: relative;
     outline: 1px solid rgba(255, 255, 255, 0.06); outline-offset: -1px;
     transition: background-color 1.5s;
   }
   .tile.broken::after {
     content: ''; position: absolute; inset: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.75);
   }
+  .tile.none { background: rgba(255, 255, 255, 0.03); }
   .tile:hover { outline: 2px solid rgba(255, 255, 255, 0.7); }
   #tip {
     position: fixed; pointer-events: none; padding: 6px 9px; border-radius: 6px; font-size: 12px;
@@ -53,6 +52,8 @@ const RAMP = [[0, [90, 8, 12]], [0.15, [150, 20, 24]], [0.3, [214, 48, 39]], [0.
               [0.6, [236, 196, 40]], [0.75, [150, 200, 60]], [0.9, [57, 211, 83]], [1, [57, 211, 83]]];
 const FLASH = 4;  // seconds a changed file glows
 const GAP = 0.5;  // a tile glows anew at most twice a second
+const CELL = 18;  // px per tile, gap included
+const WIDE = 3;  // the rectangle aims to be about this many times as wide as tall
 const WAYS = {up: [120, 255, 150], down: [255, 80, 70], same: [230, 230, 230]};
 
 const el = id => document.getElementById(id);
@@ -79,11 +80,6 @@ function colorOf(health) {
 
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-function folderOf(label) {
-  const i = label.lastIndexOf('/');
-  return i < 0 ? '' : label.slice(0, i);
-}
-
 function legend() {
   const parts = ['<span>cursed</span>'];
   for (let i = 0; i <= 10; i++) parts.push('<i style="background:' + rgb(colorOf(i / 10)) + '"></i>');
@@ -95,35 +91,31 @@ function render() {
   const files = state.files.slice().sort((a, b) => (a.label || a.name) < (b.label || b.name) ? -1 : 1);
   const root = el('tiles');
   if (!files.length) {
+    root.style.gridTemplateColumns = '';
     root.innerHTML = '<div id="empty">No files yet.</div>';
     tiles.clear();
     return;
   }
-  const groups = new Map();
-  for (const f of files) {
-    const folder = folderOf(f.label || f.name);
-    if (!groups.has(folder)) groups.set(folder, []);
-    groups.get(folder).push(f);
-  }
+  // One rectangle, in path order so folders sit together, as wide as it
+  // can be without overflowing the window; empty cells fill the last row.
+  const fit = Math.max(1, Math.floor((root.clientWidth + 4) / CELL));
+  const columns = Math.min(fit, Math.max(1, Math.ceil(Math.sqrt(files.length * WIDE))));
+  const rows = Math.ceil(files.length / columns);
+  root.style.gridTemplateColumns = 'repeat(' + columns + ', 14px)';
   const keep = new Map();
   root.textContent = '';
-  for (const [folder, group] of groups) {
-    const box = document.createElement('div');
-    const heading = document.createElement('div');
-    heading.className = 'folder';
-    heading.textContent = folder || '.';
-    const grid = document.createElement('div');
-    grid.className = 'grid';
-    for (const f of group) {
-      const node = (tiles.get(f.name) || {}).node || document.createElement('div');
-      node.className = 'tile' + (f.broken ? ' broken' : '');
-      node.style.backgroundColor = rgb(colorOf(f.health));
-      node.dataset.name = f.name;
-      grid.appendChild(node);
-      keep.set(f.name, {node, file: f});
-    }
-    box.append(heading, grid);
-    root.appendChild(box);
+  for (const f of files) {
+    const node = (tiles.get(f.name) || {}).node || document.createElement('div');
+    node.className = 'tile' + (f.broken ? ' broken' : '');
+    node.style.backgroundColor = rgb(colorOf(f.health));
+    node.dataset.name = f.name;
+    root.appendChild(node);
+    keep.set(f.name, {node, file: f});
+  }
+  for (let i = files.length; i < rows * columns; i++) {
+    const node = document.createElement('div');
+    node.className = 'tile none';
+    root.appendChild(node);
   }
   tiles.clear();
   keep.forEach((v, k) => tiles.set(k, v));
@@ -201,6 +193,7 @@ function connect() {
 }
 
 legend();
+window.addEventListener('resize', render);
 connect();
 requestAnimationFrame(frame);
 </script>

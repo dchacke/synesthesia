@@ -123,8 +123,8 @@ it prints.
 ## The tiles
 
 `Synesthete: Open Tiles` opens a browser tab with every file as a small
-square, grouped by folder like a contribution graph and colored by its
-health, from green for beautiful through yellow and orange to dark red for
+square in one rectangle, like a contribution graph, in path order and
+colored by its health, from green for beautiful through yellow and orange to dark red for
 cursed. A file that changes glows and fades over a few seconds, ringed green
 when it got better and red when it got worse; broken files carry a dot.
 Hover a tile to see its file and score. It runs on the visualizer’s server,
