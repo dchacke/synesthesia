@@ -5,40 +5,71 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Synesthete Tiles</title>
 <style>
-  html, body { margin: 0; min-height: 100%; background: #0d1117; }
+  html, body { margin: 0; height: 100%; background: #08090b; }
   body {
-    padding: 32px 40px; box-sizing: border-box;
-    font-family: -apple-system, system-ui, sans-serif; color: rgba(255, 255, 255, 0.88);
+    display: grid; place-items: center; overflow: hidden;
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+    color: #f5f5f7; -webkit-font-smoothing: antialiased;
   }
-  #head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  #stage { font-size: 28px; font-weight: 700; letter-spacing: 0.04em; }
-  #detail { font-size: 13px; opacity: 0.6; }
-  #last { font-size: 14px; margin-left: auto; transition: opacity 3s; }
-  #legend { display: flex; align-items: center; gap: 4px; margin: 14px 0 26px; font-size: 12px; opacity: 0.6; }
-  #legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
-  #legend span { margin: 0 6px; }
-  #tiles { display: grid; gap: 4px; justify-content: start; }
+  /* A soft light in the stage's color, behind the tiles. */
+  #aura {
+    position: fixed; left: 50%; top: 50%; width: 70vmin; height: 70vmin; border-radius: 50%;
+    transform: translate(-50%, -50%); filter: blur(90px); opacity: 0.16; pointer-events: none;
+    background-color: rgb(57, 211, 83); transition: background-color 3s;
+  }
+  main { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 16px; }
+  #stage {
+    font-size: clamp(40px, 6.5vmin, 76px); font-weight: 600; letter-spacing: -0.025em; line-height: 1;
+    transition: color 3s;
+  }
+  #detail {
+    margin-top: 12px; font-size: 15px; color: rgba(245, 245, 247, 0.48);
+    font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+  }
+  #tiles { display: grid; margin: 48px 0 44px; }
   .tile {
-    width: 14px; height: 14px; border-radius: 3px; position: relative;
-    outline: 1px solid rgba(255, 255, 255, 0.06); outline-offset: -1px;
-    transition: background-color 1.5s;
+    position: relative; border-radius: var(--radius);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 65%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    transition: background-color 1.5s, opacity 0.6s, filter 0.2s;
   }
+  .tile.hidden { opacity: 0; }
   .tile.broken::after {
-    content: ''; position: absolute; inset: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.75);
+    content: ''; position: absolute; inset: 32%; border-radius: 50%; background: rgba(255, 255, 255, 0.85);
   }
-  .tile:hover { outline: 2px solid rgba(255, 255, 255, 0.7); }
+  .tile:hover { filter: brightness(1.3); }
+  #scale { position: relative; width: 220px; height: 4px; border-radius: 2px; }
+  #marker {
+    position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: #f5f5f7;
+    box-shadow: 0 0 0 3px #08090b; transform: translate(-50%, -50%); transition: left 1.5s;
+  }
+  #ends {
+    display: flex; justify-content: space-between; width: 220px; margin-top: 10px;
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(245, 245, 247, 0.36);
+  }
+  #last {
+    height: 18px; margin-top: 26px; font-size: 13px; color: rgba(245, 245, 247, 0.6);
+    transition: opacity 3s;
+  }
   #tip {
-    position: fixed; pointer-events: none; padding: 6px 9px; border-radius: 6px; font-size: 12px;
-    background: rgba(22, 27, 34, 0.95); border: 1px solid rgba(255, 255, 255, 0.12); display: none;
-    white-space: nowrap;
+    position: fixed; pointer-events: none; padding: 7px 11px; border-radius: 9px; font-size: 12px;
+    background: rgba(30, 31, 36, 0.72); border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    display: none; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
-  #empty { opacity: 0.5; font-size: 14px; }
+  #empty { font-size: 15px; color: rgba(245, 245, 247, 0.4); }
 </style>
 </head>
 <body>
-<div id="head"><div id="stage">waiting for Synesthete…</div><div id="detail"></div><div id="last"></div></div>
-<div id="legend"></div>
-<div id="tiles"><div id="empty">No files yet.</div></div>
+<div id="aura"></div>
+<main>
+  <div id="stage">Waiting for Synesthete</div>
+  <div id="detail">&nbsp;</div>
+  <div id="tiles"></div>
+  <div id="scale"><div id="marker" style="left: 100%"></div></div>
+  <div id="ends"><span>Cursed</span><span>Beautiful</span></div>
+  <div id="last"></div>
+</main>
 <div id="tip"></div>
 <script>
 'use strict';
@@ -51,7 +82,7 @@ const RAMP = [[0, [90, 8, 12]], [0.15, [150, 20, 24]], [0.3, [214, 48, 39]], [0.
               [0.6, [236, 196, 40]], [0.75, [150, 200, 60]], [0.9, [57, 211, 83]], [1, [57, 211, 83]]];
 const FLASH = 4;  // seconds a changed file glows
 const GAP = 0.5;  // a tile glows anew at most twice a second
-const CELL = 18;  // px per tile, gap included
+const CELL = {smallest: 10, largest: 52};  // px per tile, gap included
 const WAYS = {up: [120, 255, 150], down: [255, 80, 70], same: [230, 230, 230]};
 
 const el = id => document.getElementById(id);
@@ -59,6 +90,8 @@ const tiles = new Map();  // file name -> {node, file}
 const flashes = new Map();  // file name -> {at, way}
 const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 let state = {health: 1, files: []};
+let size = 14;  // px per tile, gap excluded
+let shown = false;  // whether the tiles have faded in yet
 
 function now() { return performance.now() / 1000; }
 
@@ -77,49 +110,77 @@ function colorOf(health) {
 }
 
 const rgb = c => 'rgb(' + c.join(',') + ')';
+const capitalized = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-function legend() {
-  const parts = ['<span>cursed</span>'];
-  for (let i = 0; i <= 10; i++) parts.push('<i style="background:' + rgb(colorOf(i / 10)) + '"></i>');
-  parts.push('<span>beautiful</span>');
-  el('legend').innerHTML = parts.join('');
+function scale() {
+  const stops = [];
+  for (let i = 0; i <= 10; i++) stops.push(rgb(colorOf(i / 10)) + ' ' + i * 10 + '%');
+  el('scale').style.background = 'linear-gradient(90deg, ' + stops.join(', ') + ')';
+}
+
+// One square, in path order so folders sit together, as large as the
+// window allows; when even the smallest tiles can't make a square fit,
+// as many columns as fit.
+function shape(count) {
+  const width = window.innerWidth - 48, height = window.innerHeight - 300;
+  const side = Math.max(1, Math.ceil(Math.sqrt(count)));
+  let cell = Math.min(CELL.largest, Math.min(width, height) / side);
+  let columns = side;
+  if (cell < CELL.smallest) {
+    cell = CELL.smallest;
+    columns = Math.max(1, Math.floor(width / cell));
+  }
+  return {columns, cell};
 }
 
 function render() {
   const files = state.files.slice().sort((a, b) => (a.label || a.name) < (b.label || b.name) ? -1 : 1);
   const root = el('tiles');
   if (!files.length) {
-    root.style.gridTemplateColumns = '';
+    root.style.cssText = '';
     root.innerHTML = '<div id="empty">No files yet.</div>';
     tiles.clear();
     return;
   }
-  // One square, in path order so folders sit together, unless the window
-  // is too narrow for it; then as wide as fits.
-  const fit = Math.max(1, Math.floor((root.clientWidth + 4) / CELL));
-  const columns = Math.min(fit, Math.max(1, Math.ceil(Math.sqrt(files.length))));
-  root.style.gridTemplateColumns = 'repeat(' + columns + ', 14px)';
+  const {columns, cell} = shape(files.length);
+  const gap = Math.max(2, Math.round(cell * 0.16));
+  size = Math.max(6, Math.floor(cell - gap));
+  root.style.gridTemplateColumns = 'repeat(' + columns + ', ' + size + 'px)';
+  root.style.gridAutoRows = size + 'px';
+  root.style.gap = gap + 'px';
+  root.style.setProperty('--radius', Math.round(size * 0.26) + 'px');
   const keep = new Map();
   root.textContent = '';
-  for (const f of files) {
-    const node = (tiles.get(f.name) || {}).node || document.createElement('div');
-    node.className = 'tile' + (f.broken ? ' broken' : '');
+  files.forEach((f, i) => {
+    let node = (tiles.get(f.name) || {}).node;
+    const fresh = !node;
+    node = node || document.createElement('div');
+    node.className = 'tile' + (f.broken ? ' broken' : '') + (fresh && !shown && !calm.matches ? ' hidden' : '');
     node.style.backgroundColor = rgb(colorOf(f.health));
     node.dataset.name = f.name;
+    if (fresh && !shown) node.style.transitionDelay = '0s, ' + (i * 0.006).toFixed(3) + 's, 0s';
     root.appendChild(node);
     keep.set(f.name, {node, file: f});
-  }
+  });
   tiles.clear();
   keep.forEach((v, k) => tiles.set(k, v));
+  if (!shown) {  // the tiles fade in, one after another
+    shown = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      for (const {node} of tiles.values()) node.classList.remove('hidden');
+    }));
+  }
 }
 
 function showState() {
-  const stage = stageOf(state.health);
-  el('stage').textContent = STAGES[stage];
-  el('stage').style.color = rgb(colorOf(state.health));
+  const color = colorOf(state.health);
+  el('stage').textContent = capitalized(STAGES[stageOf(state.health)]);
+  el('stage').style.color = rgb(color);
+  el('aura').style.backgroundColor = rgb(color);
+  el('marker').style.left = (Math.max(0, Math.min(1, state.health)) * 100) + '%';
   const broken = state.files.filter(f => f.broken).length;
-  el('detail').textContent = state.health.toFixed(2) + ' · ' + state.files.length + ' files' +
-    (broken ? ' · ' + broken + ' broken' : '');
+  el('detail').textContent = state.health.toFixed(2) + '  ·  ' + state.files.length +
+    (state.files.length === 1 ? ' file' : ' files') + (broken ? '  ·  ' + broken + ' broken' : '');
 }
 
 function handle(message) {
@@ -133,10 +194,10 @@ function handle(message) {
     if (!previous || t - previous.at >= GAP) flashes.set(message.file, {at: t, way: message.way});
     const arrow = {up: '↗', down: '↘', same: '→'}[message.way] || '';
     const last = el('last');
-    last.textContent = arrow + ' ' + (message.label || message.file);
+    last.textContent = arrow + '  ' + (message.label || message.file);
     last.style.transition = 'none';
     last.style.opacity = 1;
-    requestAnimationFrame(() => { last.style.transition = 'opacity 3s'; last.style.opacity = 0; });
+    requestAnimationFrame(() => { last.style.transition = 'opacity 3s 1s'; last.style.opacity = 0; });
   }
 }
 
@@ -149,17 +210,18 @@ function frame() {
     const since = t - flash.at;
     if (since > FLASH) {
       flashes.delete(name);
-      if (tile) { tile.node.style.boxShadow = tile.node.style.transform = tile.node.style.filter = tile.node.style.zIndex = ''; }
+      if (tile) tile.node.style.boxShadow = tile.node.style.transform = tile.node.style.filter = tile.node.style.zIndex = '';
       continue;
     }
     if (!tile) continue;
     const k = Math.pow(1 - since / FLASH, 2);
     const own = colorOf(tile.file.health), way = WAYS[flash.way] || WAYS.same;
     tile.node.style.boxShadow =
-      '0 0 ' + (4 + 14 * k).toFixed(1) + 'px ' + (1 + 4 * k).toFixed(1) + 'px rgba(' + own.join(',') + ',' + (0.9 * k).toFixed(2) + '),' +
-      '0 0 0 ' + (2 * k).toFixed(1) + 'px rgba(' + way.join(',') + ',' + k.toFixed(2) + ')';
-    tile.node.style.filter = 'brightness(' + (1 + 0.8 * k).toFixed(2) + ')';
-    tile.node.style.transform = calm.matches ? '' : 'scale(' + (1 + 0.35 * k).toFixed(3) + ')';
+      '0 0 ' + (size * (0.4 + 1.4 * k)).toFixed(1) + 'px ' + (size * 0.3 * k).toFixed(1) + 'px rgba(' +
+        own.join(',') + ',' + (0.85 * k).toFixed(2) + '),' +
+      '0 0 0 ' + Math.max(1, size * 0.12 * k).toFixed(1) + 'px rgba(' + way.join(',') + ',' + (0.9 * k).toFixed(2) + ')';
+    tile.node.style.filter = 'brightness(' + (1 + 0.5 * k).toFixed(2) + ')';
+    tile.node.style.transform = calm.matches ? '' : 'scale(' + (1 + 0.22 * k).toFixed(3) + ')';
     tile.node.style.zIndex = '1';
   }
   requestAnimationFrame(frame);
@@ -170,21 +232,21 @@ el('tiles').addEventListener('mousemove', e => {
   const tile = e.target.classList.contains('tile') && tiles.get(e.target.dataset.name);
   if (!tile) { tip.style.display = 'none'; return; }
   const f = tile.file;
-  tip.textContent = (f.label || f.name) + ' · ' + STAGES[stageOf(f.health)] + ' ' + f.health.toFixed(2) +
-    ' · ' + f.lines + ' lines' + (f.broken ? ' · broken' : '');
+  tip.textContent = (f.label || f.name) + '  ·  ' + STAGES[stageOf(f.health)] + ' ' + f.health.toFixed(2) +
+    '  ·  ' + f.lines + ' lines' + (f.broken ? '  ·  broken' : '');
   tip.style.display = 'block';
-  tip.style.left = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8) + 'px';
-  tip.style.top = (e.clientY + 14) + 'px';
+  tip.style.left = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (e.clientY + 16) + 'px';
 });
 el('tiles').addEventListener('mouseleave', () => { el('tip').style.display = 'none'; });
 
 function connect() {
   const events = new EventSource('/events?token=' + encodeURIComponent(TOKEN));
   events.onmessage = e => handle(JSON.parse(e.data));
-  events.onerror = () => { el('detail').textContent = 'reconnecting to Sublime…'; };
+  events.onerror = () => { el('detail').textContent = 'Reconnecting to Sublime…'; };
 }
 
-legend();
+scale();
 window.addEventListener('resize', render);
 connect();
 requestAnimationFrame(frame);
