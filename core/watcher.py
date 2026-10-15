@@ -11,6 +11,8 @@ import subprocess
 import threading
 import time
 
+from .checker import NO_WINDOW
+
 LIST_EVERY = 2.0  # seconds between looking for new and deleted files
 
 
@@ -24,7 +26,7 @@ def list_files(folder, exclude):
                 ['git', '-C', folder, 'ls-files', '-z',
                  '--cached', '--others', '--exclude-standard'],
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                timeout=10, check=True).stdout
+                timeout=10, check=True, **NO_WINDOW).stdout
             return [os.path.join(folder, p) for p in out.decode('utf-8', 'replace').split('\0')
                     if p and not excluded(p, exclude)]
         except (OSError, subprocess.SubprocessError):
