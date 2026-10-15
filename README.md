@@ -191,7 +191,7 @@ The same commands are under Tools > Synesthete.
 
 Synesthete adds no key bindings. To toggle it with
 <kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>s</kbd>, run `Preferences: Synesthete Key
-Bindings` and add this to your key bindings on the right:
+Bindings` and copy the example on the left to your key bindings on the right:
 
 ```json
 { "keys": ["ctrl+alt+s"], "command": "synesthete_toggle" }

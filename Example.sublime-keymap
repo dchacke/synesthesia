@@ -1,0 +1,5 @@
+[
+    // Sublime Text doesn't load this file. Copy the binding into your own key
+    // bindings on the right to toggle Synesthete with ctrl+alt+s.
+    { "keys": ["ctrl+alt+s"], "command": "synesthete_toggle" }
+]

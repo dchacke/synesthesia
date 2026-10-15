@@ -1,6 +1,0 @@
-[
-    // Synesthete adds no key bindings. To toggle it with ctrl+alt+s, run
-    // "Preferences: Synesthete Key Bindings" and add this line on the right:
-    //
-    // { "keys": ["ctrl+alt+s"], "command": "synesthete_toggle" }
-]
