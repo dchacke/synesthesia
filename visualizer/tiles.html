@@ -26,7 +26,6 @@
   .tile.broken::after {
     content: ''; position: absolute; inset: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.75);
   }
-  .tile.none { background: rgba(255, 255, 255, 0.03); }
   .tile:hover { outline: 2px solid rgba(255, 255, 255, 0.7); }
   #tip {
     position: fixed; pointer-events: none; padding: 6px 9px; border-radius: 6px; font-size: 12px;
@@ -97,10 +96,9 @@ function render() {
     return;
   }
   // One rectangle, in path order so folders sit together, as wide as it
-  // can be without overflowing the window; empty cells fill the last row.
+  // can be without overflowing the window.
   const fit = Math.max(1, Math.floor((root.clientWidth + 4) / CELL));
   const columns = Math.min(fit, Math.max(1, Math.ceil(Math.sqrt(files.length * WIDE))));
-  const rows = Math.ceil(files.length / columns);
   root.style.gridTemplateColumns = 'repeat(' + columns + ', 14px)';
   const keep = new Map();
   root.textContent = '';
@@ -111,11 +109,6 @@ function render() {
     node.dataset.name = f.name;
     root.appendChild(node);
     keep.set(f.name, {node, file: f});
-  }
-  for (let i = files.length; i < rows * columns; i++) {
-    const node = document.createElement('div');
-    node.className = 'tile none';
-    root.appendChild(node);
   }
   tiles.clear();
   keep.forEach((v, k) => tiles.set(k, v));
