@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 (2026-10-15)
+
+- On Windows, listing a project’s files with git and checking whether code
+  parses no longer flash a console window.
+- `Preferences: Synesthete Key Bindings` shows an example binding you can
+  copy as is, without uncommenting it.
+
 ## 0.2.1 (2026-10-15)
 
 ### Fairer scores
