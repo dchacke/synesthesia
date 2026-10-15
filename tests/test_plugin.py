@@ -402,6 +402,17 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(sent[0]['way'], 'down')
         self.assertTrue(sent[1]['files'][0]['broken'])
 
+    def test_accents_soften_in_a_burst_and_recover(self):
+        clock = mock.patch.object(self.plugin.time, 'monotonic', return_value=100.0)
+        clock.start()
+        self.addCleanup(clock.stop)
+        levels = [self.conductor.softness() for _ in range(5)]  # all at once
+        self.assertEqual(levels[0], 1.0)
+        self.assertEqual(levels, sorted(levels, reverse=True))
+        self.assertEqual(levels[-1], round(self.plugin.ACCENT_SOFTEST, 1))
+        self.plugin.time.monotonic.return_value = 100.0 + self.plugin.ACCENT_RECOVERY
+        self.assertEqual(self.conductor.softness(), 1.0)
+
     def test_the_tiles_open_beside_the_tunnel(self):
         opened = []
         self.sublime.run_command = lambda name, args=None: opened.append(args['url'])

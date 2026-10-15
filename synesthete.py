@@ -36,6 +36,8 @@ PACKAGE = os.path.dirname(os.path.abspath(__file__))
 PANEL = 'synesthete'
 SOUND_VERSION = 3  # bump when the music changes, so stale renders are dropped
 ACCENT_GAP = 0.12  # seconds between accents, so a burst of changes cascades
+ACCENT_SOFTEST = 0.35  # how quiet accents get in a burst, from full volume
+ACCENT_RECOVERY = 3.0  # seconds of quiet that bring accents back to full volume
 EARLY_BAR_GAP = 0.8  # when the stage changes, wait at least this long after the last bar
 BRANCHES = ('keyword.control.conditional, keyword.control.loop, '
             'keyword.control.exception.catch, keyword.operator.logical')
@@ -237,6 +239,8 @@ class Conductor:
         self.warmer = ThreadPoolExecutor(max_workers=1)
         self.next_accent = 0.0
         self.queued_accents = 0
+        self.accent_level = 1.0  # how loud the next accent may be; see softness()
+        self.last_accent = float('-inf')
         self.history = deque(maxlen=2000)  # (time, health) whenever it changed
         self.changes = deque(maxlen=500)  # (time, way) of every change
         self.activity = {}  # file -> (time it last changed, way)
@@ -584,7 +588,7 @@ class Conductor:
 
         def job():
             try:
-                volume = self.volume('volume', 0.5)
+                volume = self.volume('volume', 0.5) * self.softness()
                 path = music.accent_file(library, stage, way, volume, cache_dir(), lines)
                 wait = self.next_accent - time.monotonic()
                 if wait > 0:
@@ -597,6 +601,16 @@ class Conductor:
                 self.queued_accents -= 1
 
         self.accents.submit(job)
+
+    def softness(self):
+        """How loud the next accent plays, from 1.0 down: full after a quiet
+        spell, and a step softer for each accent that follows close on the
+        last, so a burst of changes patters rather than clangs."""
+        now = time.monotonic()
+        level = min(1.0, self.accent_level + (now - self.last_accent) / ACCENT_RECOVERY)
+        self.accent_level = max(ACCENT_SOFTEST, level * 0.7)
+        self.last_accent = now
+        return round(level, 1)  # coarse, so accents cache well
 
     def bar(self, sheet, cursor, stage):
         """Render a bar of `sheet`. Returns (seconds until the next bar, path)."""
