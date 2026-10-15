@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 (2026-10-15)
+
+### Fairer scores
+
+- Code aligned under an argument or a string counts as one level deeper,
+  however far it’s indented, so breaking a long line no longer makes code
+  look worse. Nesting no longer depends on the tab size.
+- A `{` that opens a hash or object literal continues an expression, as
+  round and square brackets do, rather than nest. A block’s `{` still nests.
+- URLs don’t count toward a line’s length, since they can’t be broken.
+
 ## 0.2.0 (2026-10-14)
 
 ### New

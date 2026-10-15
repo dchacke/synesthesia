@@ -50,8 +50,8 @@ longer than 40 lines, functions with more than 10 branches, code nested more
 than four levels inside its function (lines inside brackets, such as
 arguments, nested arrays or hash literals, continue an expression rather
 than nest; blocks still nest), duplicated chunks, lines longer than your
-widest ruler (not counting URLs, which can't be broken), trailing whitespace, tabs mixed with spaces, and TODO,
-FIXME, XXX and HACK comments. Smells count in proportion to the file's size,
+widest ruler (not counting URLs, which can't be broken), trailing
+whitespace, tabs mixed with spaces, and TODO, FIXME, XXX and HACK comments. Smells count in proportion to the file's size,
 so one long function sinks a short file more than a long one. Mess alone
 never drops below bad.
 
